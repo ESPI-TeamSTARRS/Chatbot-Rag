@@ -1,0 +1,10 @@
+.claude/
+.github/
+.kilocode/
+.opencode/
+openspec/
+.venv/
+.kilo/
+.idea/
+.vscode/
+kilo.jsonc

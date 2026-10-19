@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+    if [[ "$remote_ref" != refs/heads/* || "$local_oid" =~ ^0+$ || "$remote_oid" =~ ^0+$ ]]; then
+        continue
+    fi
+
+    if ! git cat-file -e "${remote_oid}^{commit}" 2>/dev/null; then
+        echo "Push annulé avant les tests : $remote_ref contient un commit distant absent localement." >&2
+        echo "Exécutez git fetch puis intégrez les changements distants avant de pousser à nouveau." >&2
+        exit 1
+    fi
+
+    if ! git merge-base --is-ancestor "$remote_oid" "$local_oid"; then
+        echo "Push annulé avant les tests : $remote_ref ne peut pas être mise à jour en avance rapide (non-fast-forward)." >&2
+        echo "Intégrez les changements distants avec git pull (merge ou rebase) avant de pousser à nouveau." >&2
+        exit 1
+    fi
+done
+
+echo "Exécution des tests avant le push..."
+# Placez ici les commandes pour exécuter vos tests, par exemple :
+uv run pytest
+if [[ $? -ne 0 ]]; then
+    echo
+    echo "Tests échoués. Push annulé." >&2
+    exit 1
+fi
+echo "Tous les tests ont réussi. Push autorisé."

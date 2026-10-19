@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+commit_message_file="$1"
+commit_message="$(head -n 1 "$commit_message_file")"
+
+# Types supportés par la convention Angular / Conventional Commits
+allowed_types=(
+    "build"     # Système de build / dépendances externes (npm, Docker...)
+    "chore"     # Tâche de maintenance sans impact sur le code ou les tests
+    "ci"        # Configuration ou scripts d'intégration continue
+    "docs"      # Documentation uniquement
+    "feat"      # Nouvelle fonctionnalité -> release mineure
+    "fix"       # Correction de bug -> release de correctif
+    "perf"      # Amélioration de performance
+    "refactor"  # Restructuration du code sans changement de comportement
+    "revert"    # Annulation d'un commit précédent
+    "style"     # Formatage, sans impact sur la logique
+    "test"      # Ajout ou modification de tests
+)
+
+types_pattern="$(IFS='|'; echo "${allowed_types[*]}")"
+
+# Format accepté :
+# feat: add authentication
+# fix(api): handle invalid token
+# feat!: remove deprecated endpoint
+# feat(api)!: remove deprecated endpoint
+pattern="^(${types_pattern})(\([a-zA-Z0-9._/-]+\))?(!)?: .+"
+
+if [[ ! "$commit_message" =~ $pattern ]]; then
+    echo "Message de commit invalide : \"$commit_message\""
+    echo
+    echo "Format attendu : <type>[scope][!]: <description>"
+    echo
+    echo "Exemples :"
+    echo "  feat!: remove deprecated endpoint   -> release majeure"
+    echo "  feat: add user authentication       -> release mineure"
+    echo "  fix(api): handle expired tokens     -> release de correctif"
+    exit 1
+fi
