@@ -1,0 +1,40 @@
+# Requests for the API (docker compose up, or `uv run chatbot-rag`).
+# The last two requests call the OpenAI-compatible LLM server (Ollama) directly
+# to check it is reachable and that the model supports tool calling.
+
+@apiUrl = http://localhost:8000
+@llmUrl = http://192.168.1.251:11434/v1
+@model = gpt-oss:20b-200k
+
+### LLM server: list models
+GET {{llmUrl}}/models
+
+### LLM server: say hello directly to the model (checks that it answers)
+POST {{llmUrl}}/chat/completions
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "messages": [
+    { "role": "user", "content": "Bonjour" }
+  ]
+}
+
+### Say hello (not an error trace: the LLM should answer that no procedure was found)
+POST {{apiUrl}}/v1/traite-instruction-usager
+Content-Type: application/json
+
+{
+  "instruction": "Error.exception Bonjour"
+}
+
+### Say Good by (not an error trace: the LLM should answer that no procedure was found)
+POST {{apiUrl}}/v1/traite-instruction-usager
+Content-Type: application/json
+
+{
+  "instruction": "Error.exception Au revoir"
+}
+
+
+

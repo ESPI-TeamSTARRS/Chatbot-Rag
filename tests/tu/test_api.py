@@ -1,0 +1,56 @@
+from fastapi.testclient import TestClient
+
+from chatbot_rag.adapters.input.api import IncidentApi
+from chatbot_rag.domain import DiagnosisResult, IterationLimitError, LlmError
+
+URL = "/v1/traite-instruction-usager"
+
+
+class FakeUseCase:
+    def __init__(self, handle):
+        self._handle = handle
+
+    def execute(self, trace):
+        return self._handle(trace)
+
+
+def client(handle):
+    return TestClient(IncidentApi(FakeUseCase(handle)).app)
+
+
+def test_returns_answer_and_report_path():
+    calls = []
+
+    def handle(trace):
+        calls.append(trace)
+        return DiagnosisResult("Restart it.", "actions-taken/x.md")
+
+    response = client(handle).post(URL, json={"instruction": "ERROR boom"})
+    assert response.status_code == 200
+    assert response.json() == {"answer": "Restart it.", "report_path": "actions-taken/x.md"}
+    assert calls == ["ERROR boom"]
+
+
+def test_report_path_can_be_null():
+    response = client(lambda t: DiagnosisResult("No procedure found.", None)).post(URL, json={"instruction": "x"})
+    assert response.json()["report_path"] is None
+
+
+def test_missing_or_blank_instruction_is_422_and_handler_not_called():
+    calls = []
+    test_client = client(lambda t: calls.append(t))
+    assert test_client.post(URL, json={}).status_code == 422
+    assert test_client.post(URL, json={"instruction": "   "}).status_code == 422
+    assert calls == []
+
+
+def test_iteration_limit_and_llm_errors_are_502():
+    def limit(trace):
+        raise IterationLimitError("Iteration limit of 8 reached")
+
+    def down(trace):
+        raise LlmError("LLM request failed")
+
+    response = client(limit).post(URL, json={"instruction": "x"})
+    assert response.status_code == 502 and "Iteration limit" in response.json()["detail"]
+    assert client(down).post(URL, json={"instruction": "x"}).status_code == 502

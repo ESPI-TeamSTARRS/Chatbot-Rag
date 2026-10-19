@@ -1,0 +1,14 @@
+.claude/
+.github/
+.kilocode/
+.opencode/
+openspec/
+.venv/
+.kilo/
+.idea/
+.vscode/
+kilo.jsonc
+prompt.txt
+__pycache__/
+*.pyc
+.pytest_cache/

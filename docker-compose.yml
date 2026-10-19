@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: ${DEBUG:-false}
+      DOCS_PATH: /app/documentations
+      LLM_BASE_URL: ${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible endpoint}
+      LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL to the model name}
+    volumes:
+      - ${DOCS_PATH:-./documentations}:/app/documentations

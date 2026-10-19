@@ -9,3 +9,8 @@ openspec/
 .vscode/
 kilo.jsonc
 prompt.txt
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+documentations/actions-taken
