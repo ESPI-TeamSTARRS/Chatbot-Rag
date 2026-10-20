@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from chatbot_rag.adapters.input.api import IncidentApi
 from chatbot_rag.adapters.output.llm_openai import OpenAiCompatibleLlm
 from chatbot_rag.adapters.output.report_markdown import MarkdownReportWriter
-from chatbot_rag.adapters.output.search_bm25 import EXCLUDED_DIR, Bm25DocSearch
+from chatbot_rag.adapters.output.search_mcp import McpDocSearch
 from chatbot_rag.config import ConfigError, load_setting
 from chatbot_rag.logger import logger
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
@@ -18,8 +18,8 @@ def build_app() -> FastAPI:
     logger.configure(enabled=config.DEBUG)
     use_case = DiagnoseIncident(
         llm=OpenAiCompatibleLlm(config.LLM_BASE_URL, config.LLM_MODEL),
-        search=Bm25DocSearch(config.DOCS_PATH),
-        writer=MarkdownReportWriter(config.DOCS_PATH / EXCLUDED_DIR),
+        search=McpDocSearch(config.SEARCH_MCP_URL),
+        writer=MarkdownReportWriter(config.DOCS_PATH / "actions-taken"),
     )
     return IncidentApi(use_case).app
 

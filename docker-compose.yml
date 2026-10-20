@@ -1,11 +1,23 @@
 services:
+  bm25-mcp:
+    build: ../mcp-server
+    ports:
+      - "8001:8001"
+    environment:
+      DOCS_PATH: /app/documentations
+    volumes:
+      - ${DOCS_PATH:-./documentations}:/app/documentations:ro
+
   app:
     build: .
+    depends_on:
+      - bm25-mcp
     ports:
       - "8000:8000"
     environment:
       DEBUG: ${DEBUG:-false}
       DOCS_PATH: /app/documentations
+      SEARCH_MCP_URL: http://bm25-mcp:8001/mcp
       LLM_BASE_URL: ${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible endpoint}
       LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL to the model name}
     volumes:

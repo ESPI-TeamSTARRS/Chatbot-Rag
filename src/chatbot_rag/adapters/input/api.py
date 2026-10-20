@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator
 
-from chatbot_rag.domain import IterationLimitError, LlmError
+from chatbot_rag.domain import IterationLimitError, LlmError, SearchError
 from chatbot_rag.ports import DiagnoseIncidentPort
 
 
@@ -34,6 +34,6 @@ class IncidentApi:
     def _traite_instruction_usager(self, request: InstructionRequest) -> InstructionResponse:
         try:
             result = self._diagnose_incident.execute(request.instruction)
-        except (IterationLimitError, LlmError) as error:
+        except (IterationLimitError, LlmError, SearchError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
         return InstructionResponse(answer=result.answer, report_path=result.report_path)

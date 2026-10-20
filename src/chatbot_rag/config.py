@@ -22,6 +22,10 @@ class Setting(BaseSettings):
         description="Active les logs de debug sur la sortie standard",
         default=False,
     )
+    SEARCH_MCP_URL: str = Field(
+        description="URL du serveur MCP de recherche BM25 (ex: http://localhost:8001/mcp)",
+        default="http://localhost:8001/mcp",
+    )
     LLM_BASE_URL: str = Field(
         description="URL du serveur compatible OpenAI (ex: http://<hote-ollama>:11434/v1)",
     )
