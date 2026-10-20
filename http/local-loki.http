@@ -1,0 +1,61 @@
+# Requests to inspect what the app records in Loki (docker compose --profile dev up).
+# Streams: {app="chatbot-rag", event="request" | "document_used" | "response"}.
+# Lines are JSON and share a request_id, so they can be joined in LogQL.
+# Loki query_range defaults to the last hour; add &start=<ns>&end=<ns> to widen it.
+
+@lokiUrl = http://localhost:3100
+@apiUrl = http://localhost:8000
+
+### Loki is ready
+GET {{lokiUrl}}/ready
+
+### Labels known by Loki (app, event)
+GET {{lokiUrl}}/loki/api/v1/labels
+
+### Values of the label "event"
+GET {{lokiUrl}}/loki/api/v1/label/event/values
+
+### Generate data: a request that goes through the whole pipeline
+POST {{apiUrl}}/v1/traite-instruction-usager
+Content-Type: application/json
+
+{
+  "instruction": "Error.exception Bonjour"
+}
+
+### Everything recorded by the app
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag"}&limit=100&direction=backward
+
+### Received requests (arrival time + content)
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag", event="request"}&limit=50&direction=backward
+
+### Documents used to answer
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag", event="document_used"}&limit=50&direction=backward
+
+### HTTP status codes returned
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag", event="response"}&limit=50&direction=backward
+
+### Only the successful responses (200)
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag", event="response"} | json | status_code="200"&limit=50&direction=backward
+
+### Only the errors (status_code >= 500)
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag", event="response"} | json | status_code>=500&limit=50&direction=backward
+
+### Number of responses per status code over the last hour
+GET {{lokiUrl}}/loki/api/v1/query?query=sum by (status_code) (count_over_time({app="chatbot-rag", event="response"} | json [1h]))
+
+### Follow one request: replace REQUEST_ID with a request_id seen above
+GET {{lokiUrl}}/loki/api/v1/query_range?query={app="chatbot-rag"} |= "REQUEST_ID"&limit=50&direction=forward
+
+### Push a test line by hand (checks Loki accepts writes)
+POST {{lokiUrl}}/loki/api/v1/push
+Content-Type: application/json
+
+{
+  "streams": [
+    {
+      "stream": { "app": "chatbot-rag", "event": "request" },
+      "values": [["1760947200000000000", "{\"request_id\": \"manual-test\", \"content\": \"hand-made line\"}"]]
+    }
+  ]
+}

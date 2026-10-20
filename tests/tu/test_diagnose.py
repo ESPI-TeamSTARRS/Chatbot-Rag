@@ -64,13 +64,13 @@ def test_error_log_and_procedure_are_sent_as_is_to_the_notifier():
     assert notifier.sent == [("ERROR redis down", "Restart sentinel.")]
 
 
-def test_notifier_failure_does_not_break_the_diagnosis():
+def test_notifier_failure_propagates():
     class Down:
         def notify(self, error_log, procedure):
             raise NotificationError("n8n down")
 
-    result = diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down())
-    assert result.answer == "ok"
+    with pytest.raises(NotificationError):
+        diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down())
 
 
 def test_iteration_cap():
@@ -115,3 +115,18 @@ def test_documents_failure_alone_does_not_break_the_diagnosis():
     llm = ScriptedLlm([search_request(), LlmReply("ok")])
     result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), history=DocumentsDown())
     assert result.answer == "ok"
+
+
+def test_http_status_code_is_recorded_in_history():
+    history = FakeHistory()
+    diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), history=history)
+    assert history.responses == [(1, 200)]
+
+    class Down:
+        def notify(self, error_log, procedure):
+            raise NotificationError("n8n down")
+
+    history = FakeHistory()
+    with pytest.raises(NotificationError):
+        diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down(), history=history)
+    assert history.responses == [(1, 500)]

@@ -37,3 +37,11 @@ class RequestHistoryPort(ABC):
     @abstractmethod
     def record_documents(self, request_id: str, paths: list[str]) -> None:
         """Record the documents used to answer the request."""
+
+    @abstractmethod
+    def record_response(self, request_id: str, status_code: int) -> None:
+        """Record the HTTP status code returned for the request."""
+
+    @abstractmethod
+    def check_available(self) -> None:
+        """Raise HistoryError if the history database cannot be reached."""

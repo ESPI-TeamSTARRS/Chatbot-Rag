@@ -55,3 +55,37 @@ def test_loki_down_or_rejecting_raises_history_error():
 
     with pytest.raises(HistoryError):
         history(refused).record_documents("r1", ["a.md"])
+
+
+def test_response_status_code_is_pushed_and_logged(capsys):
+    pushed = []
+
+    def handler(request):
+        pushed.append(json.loads(request.content))
+        return httpx.Response(204)
+
+    history(handler).record_response("r1", 502)
+    stream = pushed[0]["streams"][0]
+    assert stream["stream"]["event"] == "response"
+    assert json.loads(stream["values"][0][1]) == {"request_id": "r1", "status_code": 502}
+    assert "enregistrement dans loki ..." in capsys.readouterr().out
+
+
+def test_check_available_calls_ready_and_raises_when_loki_is_down():
+    calls = []
+
+    def handler(request):
+        calls.append(str(request.url))
+        return httpx.Response(200, text="ready")
+
+    history(handler).check_available()
+    assert calls == ["http://loki:3100/ready"]
+
+    with pytest.raises(HistoryError):
+        history(lambda request: httpx.Response(503)).check_available()
+
+    def refused(request):
+        raise httpx.ConnectError("refused")
+
+    with pytest.raises(HistoryError):
+        history(refused).check_available()

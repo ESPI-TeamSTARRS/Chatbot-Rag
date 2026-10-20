@@ -5,9 +5,11 @@ from datetime import datetime, timezone
 import httpx
 
 from chatbot_rag.domain import HistoryError
+from chatbot_rag.logger import logger
 from chatbot_rag.ports import RequestHistoryPort
 
 PUSH_PATH = "/loki/api/v1/push"
+READY_PATH = "/ready"
 TIMEOUT_SECONDS = 3
 APP_LABEL = "chatbot-rag"
 
@@ -15,13 +17,20 @@ APP_LABEL = "chatbot-rag"
 class LokiRequestHistory(RequestHistoryPort):
     """Sends each request (arrival time, content) and the documents it used to Loki as log lines.
 
-    Streams: {app="chatbot-rag", event="request"} and {app="chatbot-rag", event="document_used"}.
+    Streams: {app="chatbot-rag", event="request" | "document_used" | "response"} (the latter holds the HTTP status code).
     A line carries the request_id (generated here) so both events can be joined in LogQL.
     """
 
     def __init__(self, url: str, client: httpx.Client | None = None):
         self._push_url = url.rstrip("/") + PUSH_PATH
+        self._ready_url = url.rstrip("/") + READY_PATH
         self._client = client or httpx.Client(timeout=TIMEOUT_SECONDS)
+
+    def check_available(self) -> None:
+        try:
+            self._client.get(self._ready_url).raise_for_status()
+        except httpx.HTTPError as error:
+            raise HistoryError(f"Loki unavailable ({error!r})") from error
 
     def record_request(self, received_at: datetime, content: str) -> str:
         request_id = str(uuid.uuid4())
@@ -38,6 +47,10 @@ class LokiRequestHistory(RequestHistoryPort):
         if lines:
             self._push("document_used", lines)
 
+    def record_response(self, request_id: str, status_code: int) -> None:
+        line = json.dumps({"request_id": request_id, "status_code": status_code})
+        self._push("response", [(datetime.now(timezone.utc), line)])
+
     def _push(self, event: str, entries: list[tuple[datetime, str]]) -> None:
         body = {
             "streams": [
@@ -47,6 +60,7 @@ class LokiRequestHistory(RequestHistoryPort):
                 }
             ]
         }
+        logger.info(message=f"enregistrement dans loki ... (event={event}, {len(entries)} ligne(s))")
         try:
             self._client.post(self._push_url, json=body).raise_for_status()
         except httpx.HTTPError as error:

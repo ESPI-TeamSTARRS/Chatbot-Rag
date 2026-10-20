@@ -1,7 +1,10 @@
+import traceback
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator
 
-from chatbot_rag.domain import IterationLimitError, LlmError, SearchError
+from chatbot_rag.domain import IterationLimitError, LlmError, NotificationError, SearchError
+from chatbot_rag.logger import logger
 from chatbot_rag.ports import DiagnoseIncidentPort
 
 
@@ -39,4 +42,8 @@ class IncidentApi:
             result = self._diagnose_incident.execute(request.instruction)
         except (IterationLimitError, LlmError, SearchError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
+        except NotificationError as error:
+            stacktrace = traceback.format_exc()
+            logger.warning(message=f"n8n unreachable:\n{stacktrace}")
+            raise HTTPException(status_code=500, detail=f"{error}\n{stacktrace}") from error
         return InstructionResponse(answer=result.answer)

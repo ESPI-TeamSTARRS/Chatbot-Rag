@@ -2,6 +2,10 @@ class FakeHistory:
     def __init__(self):
         self.requests = []
         self.documents = []
+        self.responses = []
+
+    def check_available(self):
+        pass
 
     def record_request(self, received_at, content):
         self.requests.append((received_at, content))
@@ -9,6 +13,10 @@ class FakeHistory:
 
     def record_documents(self, request_id, paths):
         self.documents.append((request_id, paths))
+
+
+    def record_response(self, request_id, status_code):
+        self.responses.append((request_id, status_code))
 
 
 class FakeNotifier:

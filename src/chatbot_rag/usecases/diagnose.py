@@ -6,9 +6,11 @@ from chatbot_rag.domain import (
     DiagnosisResult,
     HistoryError,
     IterationLimitError,
+    LlmError,
     LlmReply,
     LlmToolRequest,
     NotificationError,
+    SearchError,
     SearchHit,
 )
 from chatbot_rag.ports import (
@@ -29,6 +31,9 @@ SYSTEM_PROMPT = (
 )
 SEARCH_LIMIT = 5
 DEFAULT_MAX_ITERATIONS = 8
+HTTP_OK = 200
+HTTP_INTERNAL_ERROR = 500
+HTTP_BAD_GATEWAY = 502
 
 
 class IncidentSession:
@@ -86,6 +91,18 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         )
         session = IncidentSession(trace)
         session.request_id = self._record_request(trace)
+        try:
+            result = self._diagnose(trace, session)
+        except (IterationLimitError, LlmError, SearchError):
+            self._record_response(session, HTTP_BAD_GATEWAY)
+            raise
+        except NotificationError:
+            self._record_response(session, HTTP_INTERNAL_ERROR)
+            raise
+        self._record_response(session, HTTP_OK)
+        return result
+
+    def _diagnose(self, trace: str, session: IncidentSession) -> DiagnosisResult:
         for iteration in range(1, self._max_iterations + 1):
             logger.debug(
                 message=f"LLM call {iteration}/{self._max_iterations}"
@@ -96,7 +113,7 @@ class DiagnoseIncident(DiagnoseIncidentPort):
                     message=f"Final answer: {reply.content!r}"
                 )
                 answer = reply.content or ""
-                self._notify(trace, answer)
+                self._notifier.notify(trace, answer)
                 return DiagnosisResult(answer)
             session.add_assistant_reply(reply)
             for request in reply.tool_requests:
@@ -115,6 +132,14 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         except HistoryError as error:
             logger.warning(message=f"History unavailable, request not recorded: {error}")
             return None
+
+    def _record_response(self, session: IncidentSession, status_code: int) -> None:
+        if session.request_id is None:
+            return
+        try:
+            self._history.record_response(session.request_id, status_code)
+        except HistoryError as error:
+            logger.warning(message=f"History unavailable, response not recorded: {error}")
 
     def _record_documents(self, session: IncidentSession, hits: list[SearchHit]) -> None:
         if session.request_id is None:
@@ -147,12 +172,6 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         hits = self._search.search(query, SEARCH_LIMIT)
         self._record_documents(session, hits)
         return self._format_hits(hits)
-
-    def _notify(self, trace: str, answer: str) -> None:
-        try:
-            self._notifier.notify(trace, answer)
-        except NotificationError as error:
-            logger.warning(message=f"Procedure not sent to the webhook: {error}")
 
     @staticmethod
     def _format_hits(hits: list[SearchHit]) -> str:
