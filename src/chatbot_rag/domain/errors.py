@@ -10,8 +10,8 @@ class SearchError(Exception):
     """The documentation search server could not answer."""
 
 
-class ReportError(Exception):
-    """The incident report could not be written."""
+class NotificationError(Exception):
+    """The procedure could not be sent to the n8n webhook."""
 
 
 class HistoryError(Exception):

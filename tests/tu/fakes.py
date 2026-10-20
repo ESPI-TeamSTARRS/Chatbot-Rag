@@ -9,3 +9,11 @@ class FakeHistory:
 
     def record_documents(self, request_id, paths):
         self.documents.append((request_id, paths))
+
+
+class FakeNotifier:
+    def __init__(self):
+        self.sent = []
+
+    def notify(self, error_log, procedure):
+        self.sent.append((error_log, procedure))

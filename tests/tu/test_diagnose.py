@@ -1,12 +1,12 @@
 import pytest
 
-from chatbot_rag.domain import HistoryError, IterationLimitError, LlmReply, LlmToolRequest, SearchHit
+from chatbot_rag.domain import HistoryError, IterationLimitError, NotificationError, LlmReply, LlmToolRequest, SearchHit
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
-from fakes import FakeHistory
+from fakes import FakeHistory, FakeNotifier
 
 
-def diagnose_incident(trace, *, llm, search, writer, history=None, **options):
-    return DiagnoseIncident(llm, search, writer, history or FakeHistory(), **options).execute(trace)
+def diagnose_incident(trace, *, llm, search, notifier=None, history=None, **options):
+    return DiagnoseIncident(llm, search, notifier or FakeNotifier(), history or FakeHistory(), **options).execute(trace)
 
 
 class ScriptedLlm:
@@ -35,15 +35,6 @@ class FakeSearch:
         return self.hits
 
 
-class FakeWriter:
-    def __init__(self):
-        self.reports = []
-
-    def write(self, report):
-        self.reports.append(report)
-        return "actions-taken/x.md"
-
-
 HIT = SearchHit("errors-cases/redis.md", "Restart sentinel.", 1.0)
 
 
@@ -53,47 +44,50 @@ def search_request(query="redis timeout"):
 
 def test_final_answer_without_tools():
     result = diagnose_incident(
-        "trace", llm=ScriptedLlm([LlmReply("No procedure found.")]), search=FakeSearch([]), writer=FakeWriter()
+        "trace", llm=ScriptedLlm([LlmReply("No procedure found.")]), search=FakeSearch([])
     )
     assert result.answer == "No procedure found."
-    assert result.report_path is None
 
 
 def test_search_then_answer():
     search = FakeSearch([HIT])
     llm = ScriptedLlm([search_request(), LlmReply("Restart sentinel.")])
-    result = diagnose_incident("trace", llm=llm, search=search, writer=FakeWriter())
+    result = diagnose_incident("trace", llm=llm, search=search)
     assert search.queries == ["redis timeout"]
     assert result.answer == "Restart sentinel."
 
 
-def test_report_assembled_from_code_owned_data():
-    writer = FakeWriter()
-    write = LlmReply(None, (LlmToolRequest("c2", "write_report", {"title": "Redis", "summary": "Restart it"}),))
-    llm = ScriptedLlm([search_request(), write, LlmReply("Done.")])
-    result = diagnose_incident("ERROR redis down", llm=llm, search=FakeSearch([HIT]), writer=writer)
-    report = writer.reports[0]
-    assert (report.title, report.summary, report.error_trace) == ("Redis", "Restart it", "ERROR redis down")
-    assert [call.name for call in report.tool_calls] == ["search_docs"]
-    assert "Restart sentinel." in report.tool_calls[0].result
-    assert result.report_path == "actions-taken/x.md"
+def test_error_log_and_procedure_are_sent_as_is_to_the_notifier():
+    notifier = FakeNotifier()
+    llm = ScriptedLlm([search_request(), LlmReply("Restart sentinel.")])
+    diagnose_incident("ERROR redis down", llm=llm, search=FakeSearch([HIT]), notifier=notifier)
+    assert notifier.sent == [("ERROR redis down", "Restart sentinel.")]
+
+
+def test_notifier_failure_does_not_break_the_diagnosis():
+    class Down:
+        def notify(self, error_log, procedure):
+            raise NotificationError("n8n down")
+
+    result = diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down())
+    assert result.answer == "ok"
 
 
 def test_iteration_cap():
     with pytest.raises(IterationLimitError):
-        diagnose_incident("t", llm=LoopingLlm(), search=FakeSearch([]), writer=FakeWriter(), max_iterations=3)
+        diagnose_incident("t", llm=LoopingLlm(), search=FakeSearch([]), max_iterations=3)
 
 
 def test_unknown_tool_is_reported_to_llm_not_crash():
     bad = LlmReply(None, (LlmToolRequest("c1", "rm_rf", {}),))
     llm = ScriptedLlm([bad, LlmReply("ok")])
-    assert diagnose_incident("t", llm=llm, search=FakeSearch([]), writer=FakeWriter()).answer == "ok"
+    assert diagnose_incident("t", llm=llm, search=FakeSearch([])).answer == "ok"
 
 
 def test_request_and_documents_are_recorded():
     history = FakeHistory()
     llm = ScriptedLlm([search_request(), LlmReply("ok")])
-    diagnose_incident("ERROR redis down", llm=llm, search=FakeSearch([HIT]), writer=FakeWriter(), history=history)
+    diagnose_incident("ERROR redis down", llm=llm, search=FakeSearch([HIT]), history=history)
     assert [content for _, content in history.requests] == ["ERROR redis down"]
     assert history.requests[0][0].tzinfo is not None
     assert history.documents == [(1, ["errors-cases/redis.md"])]
@@ -109,7 +103,7 @@ class BrokenHistory:
 
 def test_history_failure_does_not_break_the_diagnosis():
     llm = ScriptedLlm([search_request(), LlmReply("ok")])
-    result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), writer=FakeWriter(), history=BrokenHistory())
+    result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), history=BrokenHistory())
     assert result.answer == "ok"
 
 
@@ -119,5 +113,5 @@ def test_documents_failure_alone_does_not_break_the_diagnosis():
             raise HistoryError("db down")
 
     llm = ScriptedLlm([search_request(), LlmReply("ok")])
-    result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), writer=FakeWriter(), history=DocumentsDown())
+    result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), history=DocumentsDown())
     assert result.answer == "ok"

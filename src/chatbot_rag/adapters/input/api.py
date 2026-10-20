@@ -18,7 +18,6 @@ class InstructionRequest(BaseModel):
 
 class InstructionResponse(BaseModel):
     answer: str
-    report_path: str | None
 
 
 class IncidentApi:
@@ -40,4 +39,4 @@ class IncidentApi:
             result = self._diagnose_incident.execute(request.instruction)
         except (IterationLimitError, LlmError, SearchError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
-        return InstructionResponse(answer=result.answer, report_path=result.report_path)
+        return InstructionResponse(answer=result.answer)

@@ -1,6 +1,6 @@
 # Chatbot RAG
 
-HTTP API that takes an error trace, searches the documentation through a BM25 MCP server (the standalone `mcp-server` project, next to this one) and answers with the procedure to follow. It also writes an incident report.
+HTTP API that takes an error trace, searches the documentation through a BM25 MCP server (the standalone `mcp-server` project, next to this one) and answers with the procedure to follow. The error log and the procedure are then sent, as is, to an n8n webhook.
 
 ## Configuration
 
@@ -8,19 +8,22 @@ HTTP API that takes an error trace, searches the documentation through a BM25 MC
 |---|---|
 | `DOCS_PATH` | Documentation folder (with Docker: path on the host, mounted at `/app/documentations`) (indexed, `actions-taken/` excluded). Edits, additions and deletions are picked up on the next search, no restart needed |
 | `SEARCH_MCP_URL` | URL of the BM25 MCP server (default `http://localhost:8001/mcp`; set automatically by docker compose) |
-| `DATABASE_URL` | PostgreSQL URL for the request history (default `postgresql://chatbot:chatbot@localhost:5432/chatbot`; set automatically by docker compose) |
+| `LOKI_URL` | Loki receiving the request history (default `http://localhost:3100`; docker compose defaults to its `loki` service, which only exists with `--profile dev`) |
 | `DEBUG` | `true` prints `[DEBUG]` logs on stdout (default `false`) |
+| `N8N_WEBHOOK_URL` | n8n webhook receiving a JSON POST `{"error_log": ..., "procedure": ...}` (the request received and the answer, unchanged) |
 | `LLM_BASE_URL` | OpenAI-compatible endpoint (e.g. `http://<ollama-host>:11434/v1`) |
 | `LLM_MODEL` | Model name; it must support tool calling |
 
-## Request history (PostgreSQL)
+## Request history (Loki)
 
-Tables are created on first use. The history never breaks a diagnosis: if the database is down, a `[WARNING]` is printed on stdout and the diagnosis goes on. `requests` (`id`, `received_at`, `content`) stores each incoming request; `documents` (`id`, `path` unique) is the list of known documents, completed as soon as a new document is returned by a search; `request_documents` (`request_id`, `document_id`) links a request to the documents it used. The integration test runs when `TEST_DATABASE_URL` is set.
+Each request is pushed to Loki as log lines, labelled `app="chatbot-rag"`: `event="request"` (line timestamp = arrival time, JSON `{request_id, content}`) and `event="document_used"` (one line per document returned by a search, JSON `{request_id, path}`). The list of documents is therefore always up to date: `sum by (path) (count_over_time({app="chatbot-rag", event="document_used"} | json [30d]))`. The history never breaks a diagnosis: if Loki is down, a `[WARNING]` is printed on stdout and the diagnosis goes on.
+
+The `loki` service of the docker compose belongs to the `dev` profile: `docker compose up -d` does not start it (use the Loki that already exists and set `LOKI_URL`), `docker compose --profile dev up -d` starts it on port 3100.
 
 ## Usage
 
 ```bash
-cp .env.exemple .env      # then edit LLM_BASE_URL and LLM_MODEL
+cp .env.exemple .env      # then edit LLM_BASE_URL, LLM_MODEL and N8N_WEBHOOK_URL
 docker compose up --build
 ```
 
@@ -32,12 +35,12 @@ Without Docker: `cd ../mcp-server && uv run bm25-mcp`, then in another terminal 
 curl -X POST http://localhost:8000/v1/traite-instruction-usager \
   -H 'Content-Type: application/json' \
   -d '{"instruction": "redis.exceptions.TimeoutError: Timeout reading from socket"}'
-# {"answer": "...", "report_path": "documentations/actions-taken/<timestamp>-<title>.md"}
+# {"answer": "..."}
 ```
 
 Status codes: `200` success, `422` missing or blank `instruction`, `502` LLM unreachable or iteration limit reached. More requests are in `http/local-request.http`.
 
-Reports are written to `documentations/actions-taken/<YYYYMMDD-HHMMSS>-<title>.md` (UTC). The title is the name given by the documentation's `Report` section when there is one, otherwise the LLM chooses it; the LLM only provides the title and summary; the error trace and tool calls are added by the application.
+The webhook call never breaks a diagnosis: if n8n is unreachable, a `[WARNING]` is printed and the answer is still returned.
 
 ## Développement
 

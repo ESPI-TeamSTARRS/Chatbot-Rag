@@ -5,7 +5,7 @@ import pytest
 from chatbot_rag.domain import LlmReply
 from chatbot_rag.logger import logger
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
-from fakes import FakeHistory
+from fakes import FakeHistory, FakeNotifier
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +42,7 @@ def test_use_case_logs_its_steps(capsys):
             return LlmReply("done")
 
     logger.configure(enabled=True)
-    DiagnoseIncident(Llm(), None, None, FakeHistory()).execute("boom")
+    DiagnoseIncident(Llm(), None, FakeNotifier(), FakeHistory()).execute("boom")
     out = capsys.readouterr().out
     assert "[DEBUG]: Diagnosis started" in out and "[DEBUG]: Final answer: 'done'" in out
 

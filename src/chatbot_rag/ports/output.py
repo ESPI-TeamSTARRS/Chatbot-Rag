@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from datetime import datetime
 
-from chatbot_rag.domain import LlmReply, Report, SearchHit
+from chatbot_rag.domain import LlmReply, SearchHit
 
 
 class LlmPort(ABC):
@@ -19,21 +19,21 @@ class DocSearchPort(ABC):
     def search(self, query: str, limit: int) -> list[SearchHit]: ...
 
 
-class ReportWriterPort(ABC):
-    """What the application needs to persist an incident report."""
+class ProcedureNotifierPort(ABC):
+    """What the application needs to hand the procedure to follow over to the outside world."""
 
     @abstractmethod
-    def write(self, report: Report) -> str:
-        """Persist the report and return its location."""
+    def notify(self, error_log: str, procedure: str) -> None:
+        """Send the error log received and the procedure to follow, both as is."""
 
 
 class RequestHistoryPort(ABC):
     """What the application needs to remember incoming requests and the documents they used."""
 
     @abstractmethod
-    def record_request(self, received_at: datetime, content: str) -> int:
+    def record_request(self, received_at: datetime, content: str) -> str:
         """Store the request and return its id."""
 
     @abstractmethod
-    def record_documents(self, request_id: int, paths: list[str]) -> None:
-        """Register the documents (added to the known list if new) used to answer the request."""
+    def record_documents(self, request_id: str, paths: list[str]) -> None:
+        """Record the documents used to answer the request."""

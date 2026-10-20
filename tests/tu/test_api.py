@@ -26,22 +26,17 @@ def test_health_returns_ok_without_calling_use_case():
     assert calls == []
 
 
-def test_returns_answer_and_report_path():
+def test_returns_answer():
     calls = []
 
     def handle(trace):
         calls.append(trace)
-        return DiagnosisResult("Restart it.", "actions-taken/x.md")
+        return DiagnosisResult("Restart it.")
 
     response = client(handle).post(URL, json={"instruction": "ERROR boom"})
     assert response.status_code == 200
-    assert response.json() == {"answer": "Restart it.", "report_path": "actions-taken/x.md"}
+    assert response.json() == {"answer": "Restart it."}
     assert calls == ["ERROR boom"]
-
-
-def test_report_path_can_be_null():
-    response = client(lambda t: DiagnosisResult("No procedure found.", None)).post(URL, json={"instruction": "x"})
-    assert response.json()["report_path"] is None
 
 
 def test_missing_or_blank_instruction_is_422_and_handler_not_called():

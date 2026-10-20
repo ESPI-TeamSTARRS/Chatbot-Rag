@@ -8,34 +8,31 @@ from chatbot_rag.domain import (
     IterationLimitError,
     LlmReply,
     LlmToolRequest,
-    Report,
+    NotificationError,
     SearchHit,
-    ToolCall,
 )
 from chatbot_rag.ports import (
     DiagnoseIncidentPort,
     DocSearchPort,
     LlmPort,
-    ReportWriterPort,
+    ProcedureNotifierPort,
     RequestHistoryPort,
 )
 from chatbot_rag.logger import logger
-from chatbot_rag.usecases.tools import SEARCH_DOCS, TOOL_SCHEMAS, WRITE_REPORT
+from chatbot_rag.usecases.tools import SEARCH_DOCS, TOOL_SCHEMAS
 
 SYSTEM_PROMPT = (
     "You are an incident-response assistant. You receive an error trace. Call the search_docs tool "
     "once: it returns the full content of the 5 most relevant documents. Read them to find the "
-    "documented procedure for this case, answer with the procedure to follow, and "
-    "call write_report once with a title and a summary. If the documentation has a 'Report' "
-    "section that specifies the report name, use exactly that name as the title; otherwise choose "
-    "a short, descriptive title yourself. If no documented procedure exists, say so. "
+    "documented procedure for this case and answer with the procedure to follow, as is. "
+    "If no documented procedure exists, say so."
 )
 SEARCH_LIMIT = 5
 DEFAULT_MAX_ITERATIONS = 8
 
 
 class IncidentSession:
-    """State of one diagnosis: the LLM conversation, the tool journal and the report location."""
+    """State of one diagnosis: the LLM conversation and the id of the recorded request."""
 
     def __init__(self, trace: str):
         self.trace = trace
@@ -43,9 +40,7 @@ class IncidentSession:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": trace},
         ]
-        self.journal: list[ToolCall] = []
-        self.report_path: str | None = None
-        self.request_id: int | None = None
+        self.request_id: str | None = None
 
     def add_assistant_reply(self, reply: LlmReply) -> None:
         self.messages.append(
@@ -59,12 +54,6 @@ class IncidentSession:
     def add_tool_result(self, request: LlmToolRequest, result: str) -> None:
         self.messages.append({"role": "tool", "tool_call_id": request.id, "content": result})
 
-    def record_tool_call(self, request: LlmToolRequest, result: str) -> None:
-        self.journal.append(ToolCall(request.name, request.arguments, result))
-
-    def build_report(self, title: str, summary: str) -> Report:
-        return Report(title, summary, self.trace, tuple(self.journal))
-
     @staticmethod
     def _tool_call_message(request: LlmToolRequest) -> dict:
         return {
@@ -75,19 +64,19 @@ class IncidentSession:
 
 
 class DiagnoseIncident(DiagnoseIncidentPort):
-    """Asks the LLM to diagnose an error trace, letting it search the docs and write a report."""
+    """Asks the LLM to diagnose an error trace, letting it search the docs, then sends the procedure to follow to a webhook."""
 
     def __init__(
         self,
         llm: LlmPort,
         search: DocSearchPort,
-        writer: ReportWriterPort,
+        notifier: ProcedureNotifierPort,
         history: RequestHistoryPort,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
     ):
         self._llm = llm
         self._search = search
-        self._writer = writer
+        self._notifier = notifier
         self._history = history
         self._max_iterations = max_iterations
 
@@ -106,7 +95,9 @@ class DiagnoseIncident(DiagnoseIncidentPort):
                 logger.debug(
                     message=f"Final answer: {reply.content!r}"
                 )
-                return DiagnosisResult(reply.content or "", session.report_path)
+                answer = reply.content or ""
+                self._notify(trace, answer)
+                return DiagnosisResult(answer)
             session.add_assistant_reply(reply)
             for request in reply.tool_requests:
                 session.add_tool_result(request, self._run_tool(request, session))
@@ -117,7 +108,7 @@ class DiagnoseIncident(DiagnoseIncidentPort):
             f"Iteration limit of {self._max_iterations} reached without a final answer"
         )
 
-    def _record_request(self, trace: str) -> int | None:
+    def _record_request(self, trace: str) -> str | None:
         """The history is observability only: a failure is logged and never aborts the diagnosis."""
         try:
             return self._history.record_request(datetime.now(timezone.utc), trace)
@@ -137,21 +128,13 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         logger.debug(
             message=f"Tool requested: {request.name} {request.arguments}"
         )
-        if request.name == WRITE_REPORT:
-            result = self._write_report(request.arguments, session)
-        else:
-            result = self._run_journaled_tool(request, session)
-        logger.debug(
-            message=f"Tool result ({request.name}): {result!r}"
-        )
-        return result
-
-    def _run_journaled_tool(self, request: LlmToolRequest, session: IncidentSession) -> str:
         if request.name == SEARCH_DOCS:
             result = self._search_docs(request.arguments, session)
         else:
             result = f"Error: unknown tool '{request.name}'"
-        session.record_tool_call(request, result)
+        logger.debug(
+            message=f"Tool result ({request.name}): {result!r}"
+        )
         return result
 
     def _search_docs(self, arguments: dict, session: IncidentSession) -> str:
@@ -165,13 +148,11 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         self._record_documents(session, hits)
         return self._format_hits(hits)
 
-    def _write_report(self, arguments: dict, session: IncidentSession) -> str:
+    def _notify(self, trace: str, answer: str) -> None:
         try:
-            report = session.build_report(arguments["title"], arguments["summary"])
-            session.report_path = self._writer.write(report)
-        except Exception as error:  # reported back to the LLM, which may retry
-            raise Exception( f"Error: could not write report ({error!r})")
-        return f"Report written to {session.report_path}"
+            self._notifier.notify(trace, answer)
+        except NotificationError as error:
+            logger.warning(message=f"Procedure not sent to the webhook: {error}")
 
     @staticmethod
     def _format_hits(hits: list[SearchHit]) -> str:

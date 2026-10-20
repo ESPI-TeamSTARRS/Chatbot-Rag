@@ -26,9 +26,12 @@ class Setting(BaseSettings):
         description="URL du serveur MCP de recherche BM25 (ex: http://localhost:8001/mcp)",
         default="http://localhost:8001/mcp",
     )
-    DATABASE_URL: str = Field(
-        description="URL de la base PostgreSQL d'historique (ex: postgresql://user:pass@localhost:5432/chatbot)",
-        default="postgresql://chatbot:chatbot@localhost:5432/chatbot",
+    LOKI_URL: str = Field(
+        description="URL de Loki recevant l'historique des requêtes (ex: http://localhost:3100)",
+        default="http://localhost:3100",
+    )
+    N8N_WEBHOOK_URL: str = Field(
+        description="URL du webhook n8n qui reçoit le log d'erreur et la procédure à suivre",
     )
     LLM_BASE_URL: str = Field(
         description="URL du serveur compatible OpenAI (ex: http://<hote-ollama>:11434/v1)",
