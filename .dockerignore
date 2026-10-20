@@ -4,7 +4,6 @@
 .opencode/
 openspec/
 .venv/
-mcp-bm25/
 .kilo/
 .idea/
 .vscode/

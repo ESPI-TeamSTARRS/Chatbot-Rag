@@ -1,15 +1,28 @@
-import os
 import socket
 import subprocess
+import sys
 import time
-from pathlib import Path
 
 import pytest
 
 from chatbot_rag.adapters.output.search_mcp import McpDocSearch
 from chatbot_rag.domain import SearchError
 
-SERVER_DIR = Path(__file__).parents[2] / "mcp-bm25"
+FAKE_SERVER = """
+import sys
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("fake-search", port=int(sys.argv[1]))
+DOCS = [{"path": "redis.md", "text": "Restart the redis sentinel.", "score": 1.5}]
+
+
+@mcp.tool()
+def search_docs(query: str, limit: int = 5) -> list[dict]:
+    return [doc for doc in DOCS if query in doc["text"].lower()][:limit]
+
+
+mcp.run(transport="streamable-http")
+"""
 
 
 def free_port() -> int:
@@ -19,31 +32,34 @@ def free_port() -> int:
 
 
 @pytest.fixture
-def server_url(tmp_path):
-    (tmp_path / "redis.md").write_text("# Redis timeout\n\nRestart the redis sentinel.\n")
+def server_url():
     port = free_port()
-    env = {**os.environ, "DOCS_PATH": str(tmp_path), "PORT": str(port)}
     process = subprocess.Popen(
-        ["uv", "run", "--project", str(SERVER_DIR), "bm25-mcp"],
-        env=env,
+        [sys.executable, "-c", FAKE_SERVER, str(port)],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
     )
     deadline = time.time() + 30
     while time.time() < deadline:
+        if process.poll() is not None:
+            pytest.fail(f"fake MCP server exited: {process.stderr.read().decode()}")
         with socket.socket() as sock:
             if sock.connect_ex(("127.0.0.1", port)) == 0:
                 break
-        time.sleep(0.2)
+        time.sleep(0.1)
+    else:
+        process.kill()
+        pytest.fail("fake MCP server did not start")
     yield f"http://127.0.0.1:{port}/mcp"
     process.terminate()
     process.wait(timeout=10)
 
 
 def test_search_goes_through_the_mcp_server(server_url):
-    hits = McpDocSearch(server_url).search("redis sentinel", limit=3)
-    assert [hit.path for hit in hits] == ["redis.md"]
-    assert "Restart the redis sentinel." in hits[0].text
+    hits = McpDocSearch(server_url).search("redis", limit=3)
+    assert [(hit.path, hit.text, hit.score) for hit in hits] == [
+        ("redis.md", "Restart the redis sentinel.", 1.5)
+    ]
 
 
 def test_no_match_returns_empty(server_url):

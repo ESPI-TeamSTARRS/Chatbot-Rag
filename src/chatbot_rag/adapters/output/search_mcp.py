@@ -10,7 +10,7 @@ SEARCH_TOOL = "search_docs"
 
 
 class McpDocSearch(DocSearchPort):
-    """Documentation search delegated to a remote MCP server (see mcp-bm25/)."""
+    """Documentation search delegated to a remote MCP server (see ../mcp-server)."""
 
     def __init__(self, url: str):
         self._url = url
