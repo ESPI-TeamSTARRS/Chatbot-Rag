@@ -30,6 +30,10 @@ class IncidentApi:
         self.app.post("/v1/traite-instruction-usager", response_model=InstructionResponse)(
             self._traite_instruction_usager
         )
+        self.app.get("/health")(self._health)
+
+    def _health(self) -> dict[str, str]:
+        return {"status": "ok"}
 
     def _traite_instruction_usager(self, request: InstructionRequest) -> InstructionResponse:
         try:

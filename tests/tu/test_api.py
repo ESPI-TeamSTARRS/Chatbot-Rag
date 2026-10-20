@@ -18,6 +18,14 @@ def client(handle):
     return TestClient(IncidentApi(FakeUseCase(handle)).app)
 
 
+def test_health_returns_ok_without_calling_use_case():
+    calls = []
+    response = client(lambda t: calls.append(t)).get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert calls == []
+
+
 def test_returns_answer_and_report_path():
     calls = []
 
