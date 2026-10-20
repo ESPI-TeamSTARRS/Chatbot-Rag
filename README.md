@@ -34,14 +34,19 @@ Status codes: `200` success, `422` missing or blank `instruction`, `502` LLM unr
 
 Reports are written to `documentations/actions-taken/<YYYYMMDD-HHMMSS>-<title>.md` (UTC). The title is the name given by the documentation's `Report` section when there is one, otherwise the LLM chooses it; the LLM only provides the title and summary; the error trace and tool calls are added by the application.
 
-## Tests
+## Développement
 
-Tests are split by level: `tests/tu` (unit, fakes only) and `tests/ti` (integration, real filesystem).
+Les tâches sont lancées avec [Poe the Poet](https://poethepoet.natn.io/) via uv : `uv run poe <tâche>` (`uv run poe --help` les liste).
 
-```bash
-uv run pytest            # everything (the MCP server has its own tests: cd ../mcp-server && uv run pytest)
-uv run pytest tests/tu   # or tests/ti
-```
+| Commande | Description |
+|---|---|
+| `uv run poe serve` | Démarre l'API sur le port 8000 (nécessite `LLM_BASE_URL`, `LLM_MODEL` et le serveur MCP de recherche) |
+| `uv run poe test` | Tous les tests |
+| `uv run poe test-tu` | Tests unitaires (`tests/tu`, fakes uniquement) |
+| `uv run poe test-ti` | Tests d'intégration (`tests/ti`, vrai système de fichiers et faux serveur MCP) |
+| `uv run poe check` | Toutes les vérifications (pour l'instant les tests), appelée par le hook `pre-push` |
+
+Le serveur MCP a ses propres tests : `cd ../mcp-server && uv run pytest`.
 
 ## Git hooks
 
