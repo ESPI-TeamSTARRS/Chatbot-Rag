@@ -1,11 +1,12 @@
 import pytest
 
-from chatbot_rag.domain import IterationLimitError, LlmReply, LlmToolRequest, SearchHit
+from chatbot_rag.domain import HistoryError, IterationLimitError, LlmReply, LlmToolRequest, SearchHit
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
+from fakes import FakeHistory
 
 
-def diagnose_incident(trace, *, llm, search, writer, **options):
-    return DiagnoseIncident(llm, search, writer, **options).execute(trace)
+def diagnose_incident(trace, *, llm, search, writer, history=None, **options):
+    return DiagnoseIncident(llm, search, writer, history or FakeHistory(), **options).execute(trace)
 
 
 class ScriptedLlm:
@@ -87,3 +88,36 @@ def test_unknown_tool_is_reported_to_llm_not_crash():
     bad = LlmReply(None, (LlmToolRequest("c1", "rm_rf", {}),))
     llm = ScriptedLlm([bad, LlmReply("ok")])
     assert diagnose_incident("t", llm=llm, search=FakeSearch([]), writer=FakeWriter()).answer == "ok"
+
+
+def test_request_and_documents_are_recorded():
+    history = FakeHistory()
+    llm = ScriptedLlm([search_request(), LlmReply("ok")])
+    diagnose_incident("ERROR redis down", llm=llm, search=FakeSearch([HIT]), writer=FakeWriter(), history=history)
+    assert [content for _, content in history.requests] == ["ERROR redis down"]
+    assert history.requests[0][0].tzinfo is not None
+    assert history.documents == [(1, ["errors-cases/redis.md"])]
+
+
+class BrokenHistory:
+    def record_request(self, received_at, content):
+        raise HistoryError("db down")
+
+    def record_documents(self, request_id, paths):
+        raise HistoryError("db down")
+
+
+def test_history_failure_does_not_break_the_diagnosis():
+    llm = ScriptedLlm([search_request(), LlmReply("ok")])
+    result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), writer=FakeWriter(), history=BrokenHistory())
+    assert result.answer == "ok"
+
+
+def test_documents_failure_alone_does_not_break_the_diagnosis():
+    class DocumentsDown(FakeHistory):
+        def record_documents(self, request_id, paths):
+            raise HistoryError("db down")
+
+    llm = ScriptedLlm([search_request(), LlmReply("ok")])
+    result = diagnose_incident("t", llm=llm, search=FakeSearch([HIT]), writer=FakeWriter(), history=DocumentsDown())
+    assert result.answer == "ok"

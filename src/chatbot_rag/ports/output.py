@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from datetime import datetime
+
 from chatbot_rag.domain import LlmReply, Report, SearchHit
 
 
@@ -23,3 +25,15 @@ class ReportWriterPort(ABC):
     @abstractmethod
     def write(self, report: Report) -> str:
         """Persist the report and return its location."""
+
+
+class RequestHistoryPort(ABC):
+    """What the application needs to remember incoming requests and the documents they used."""
+
+    @abstractmethod
+    def record_request(self, received_at: datetime, content: str) -> int:
+        """Store the request and return its id."""
+
+    @abstractmethod
+    def record_documents(self, request_id: int, paths: list[str]) -> None:
+        """Register the documents (added to the known list if new) used to answer the request."""

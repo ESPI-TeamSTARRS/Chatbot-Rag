@@ -1,4 +1,4 @@
-from chatbot_rag.domain.errors import IterationLimitError, LlmError, ReportError, SearchError
+from chatbot_rag.domain.errors import HistoryError, IterationLimitError, LlmError, ReportError, SearchError
 from chatbot_rag.domain.models import (
     DiagnosisResult,
     LlmReply,
@@ -10,6 +10,7 @@ from chatbot_rag.domain.models import (
 
 __all__ = [
     "DiagnosisResult",
+    "HistoryError",
     "IterationLimitError",
     "LlmError",
     "LlmReply",

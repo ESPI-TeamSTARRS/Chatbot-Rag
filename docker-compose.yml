@@ -8,17 +8,39 @@ services:
     volumes:
       - ${DOCS_PATH:-./documentations}:/app/documentations:ro
 
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: chatbot
+      POSTGRES_DB: chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatbot"]
+      interval: 5s
+      retries: 10
+
   app:
     build: .
     depends_on:
-      - bm25-mcp
+      bm25-mcp:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       DEBUG: ${DEBUG:-false}
       DOCS_PATH: /app/documentations
       SEARCH_MCP_URL: http://bm25-mcp:8001/mcp
+      DATABASE_URL: postgresql://chatbot:chatbot@postgres:5432/chatbot
       LLM_BASE_URL: ${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible endpoint}
       LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL to the model name}
     volumes:
       - ${DOCS_PATH:-./documentations}:/app/documentations
+
+volumes:
+  pgdata:

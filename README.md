@@ -1,6 +1,6 @@
 # Chatbot RAG
 
-HTTP API that takes an error trace, searches the documentation through a BM25 MCP server (the standalone `mcp-server` project, next to this one) and answers with the procedure to follow. It also writes an incident report. Remediation is not executed.
+HTTP API that takes an error trace, searches the documentation through a BM25 MCP server (the standalone `mcp-server` project, next to this one) and answers with the procedure to follow. It also writes an incident report.
 
 ## Configuration
 
@@ -8,9 +8,14 @@ HTTP API that takes an error trace, searches the documentation through a BM25 MC
 |---|---|
 | `DOCS_PATH` | Documentation folder (with Docker: path on the host, mounted at `/app/documentations`) (indexed, `actions-taken/` excluded). Edits, additions and deletions are picked up on the next search, no restart needed |
 | `SEARCH_MCP_URL` | URL of the BM25 MCP server (default `http://localhost:8001/mcp`; set automatically by docker compose) |
+| `DATABASE_URL` | PostgreSQL URL for the request history (default `postgresql://chatbot:chatbot@localhost:5432/chatbot`; set automatically by docker compose) |
 | `DEBUG` | `true` prints `[DEBUG]` logs on stdout (default `false`) |
 | `LLM_BASE_URL` | OpenAI-compatible endpoint (e.g. `http://<ollama-host>:11434/v1`) |
 | `LLM_MODEL` | Model name; it must support tool calling |
+
+## Request history (PostgreSQL)
+
+Tables are created on first use. The history never breaks a diagnosis: if the database is down, a `[WARNING]` is printed on stdout and the diagnosis goes on. `requests` (`id`, `received_at`, `content`) stores each incoming request; `documents` (`id`, `path` unique) is the list of known documents, completed as soon as a new document is returned by a search; `request_documents` (`request_id`, `document_id`) links a request to the documents it used. The integration test runs when `TEST_DATABASE_URL` is set.
 
 ## Usage
 

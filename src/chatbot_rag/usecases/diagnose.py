@@ -1,7 +1,10 @@
 import json
 
+from datetime import datetime, timezone
+
 from chatbot_rag.domain import (
     DiagnosisResult,
+    HistoryError,
     IterationLimitError,
     LlmReply,
     LlmToolRequest,
@@ -14,6 +17,7 @@ from chatbot_rag.ports import (
     DocSearchPort,
     LlmPort,
     ReportWriterPort,
+    RequestHistoryPort,
 )
 from chatbot_rag.logger import logger
 from chatbot_rag.usecases.tools import SEARCH_DOCS, TOOL_SCHEMAS, WRITE_REPORT
@@ -25,7 +29,6 @@ SYSTEM_PROMPT = (
     "call write_report once with a title and a summary. If the documentation has a 'Report' "
     "section that specifies the report name, use exactly that name as the title; otherwise choose "
     "a short, descriptive title yourself. If no documented procedure exists, say so. "
-    "Never claim that a remediation was executed."
 )
 SEARCH_LIMIT = 5
 DEFAULT_MAX_ITERATIONS = 8
@@ -42,6 +45,7 @@ class IncidentSession:
         ]
         self.journal: list[ToolCall] = []
         self.report_path: str | None = None
+        self.request_id: int | None = None
 
     def add_assistant_reply(self, reply: LlmReply) -> None:
         self.messages.append(
@@ -78,11 +82,13 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         llm: LlmPort,
         search: DocSearchPort,
         writer: ReportWriterPort,
+        history: RequestHistoryPort,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
     ):
         self._llm = llm
         self._search = search
         self._writer = writer
+        self._history = history
         self._max_iterations = max_iterations
 
     def execute(self, trace: str) -> DiagnosisResult:
@@ -90,6 +96,7 @@ class DiagnoseIncident(DiagnoseIncidentPort):
             message=f"Diagnosis started, trace: {trace!r}"
         )
         session = IncidentSession(trace)
+        session.request_id = self._record_request(trace)
         for iteration in range(1, self._max_iterations + 1):
             logger.debug(
                 message=f"LLM call {iteration}/{self._max_iterations}"
@@ -110,6 +117,22 @@ class DiagnoseIncident(DiagnoseIncidentPort):
             f"Iteration limit of {self._max_iterations} reached without a final answer"
         )
 
+    def _record_request(self, trace: str) -> int | None:
+        """The history is observability only: a failure is logged and never aborts the diagnosis."""
+        try:
+            return self._history.record_request(datetime.now(timezone.utc), trace)
+        except HistoryError as error:
+            logger.warning(message=f"History unavailable, request not recorded: {error}")
+            return None
+
+    def _record_documents(self, session: IncidentSession, hits: list[SearchHit]) -> None:
+        if session.request_id is None:
+            return
+        try:
+            self._history.record_documents(session.request_id, [hit.path for hit in hits])
+        except HistoryError as error:
+            logger.warning(message=f"History unavailable, documents not recorded: {error}")
+
     def _run_tool(self, request: LlmToolRequest, session: IncidentSession) -> str:
         logger.debug(
             message=f"Tool requested: {request.name} {request.arguments}"
@@ -125,20 +148,22 @@ class DiagnoseIncident(DiagnoseIncidentPort):
 
     def _run_journaled_tool(self, request: LlmToolRequest, session: IncidentSession) -> str:
         if request.name == SEARCH_DOCS:
-            result = self._search_docs(request.arguments)
+            result = self._search_docs(request.arguments, session)
         else:
             result = f"Error: unknown tool '{request.name}'"
         session.record_tool_call(request, result)
         return result
 
-    def _search_docs(self, arguments: dict) -> str:
+    def _search_docs(self, arguments: dict, session: IncidentSession) -> str:
         query = arguments.get("query")
         logger.debug(
             message=f"Tool requested: {SEARCH_DOCS} {query}"
         )
         if not isinstance(query, str) or not query.strip():
             raise Exception("Error: 'query' must be a non-empty string")
-        return self._format_hits(self._search.search(query, SEARCH_LIMIT))
+        hits = self._search.search(query, SEARCH_LIMIT)
+        self._record_documents(session, hits)
+        return self._format_hits(hits)
 
     def _write_report(self, arguments: dict, session: IncidentSession) -> str:
         try:

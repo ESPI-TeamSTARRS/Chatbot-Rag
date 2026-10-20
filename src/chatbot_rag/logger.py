@@ -26,5 +26,10 @@ class Logger:
             timestamp = datetime.now().isoformat(timespec="seconds")
             print(f"{timestamp} [DEBUG]: {message}", flush=True)
 
+    def warning(self, message: str) -> None:
+        """Always printed, whatever the debug mode, and even before `configure`."""
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        print(f"{timestamp} [WARNING]: {message}", flush=True)
+
 
 logger = Logger()

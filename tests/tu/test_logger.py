@@ -5,6 +5,7 @@ import pytest
 from chatbot_rag.domain import LlmReply
 from chatbot_rag.logger import logger
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
+from fakes import FakeHistory
 
 
 @pytest.fixture(autouse=True)
@@ -41,6 +42,12 @@ def test_use_case_logs_its_steps(capsys):
             return LlmReply("done")
 
     logger.configure(enabled=True)
-    DiagnoseIncident(Llm(), None, None).execute("boom")
+    DiagnoseIncident(Llm(), None, None, FakeHistory()).execute("boom")
     out = capsys.readouterr().out
     assert "[DEBUG]: Diagnosis started" in out and "[DEBUG]: Final answer: 'done'" in out
+
+
+def test_warning_is_printed_even_when_debug_is_disabled(capsys):
+    logger.configure(enabled=False)
+    logger.warning(message="db down")
+    assert "[WARNING]: db down" in capsys.readouterr().out

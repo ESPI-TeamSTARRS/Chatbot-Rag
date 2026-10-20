@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from chatbot_rag.adapters.input.api import IncidentApi
 from chatbot_rag.adapters.output.llm_openai import OpenAiCompatibleLlm
+from chatbot_rag.adapters.output.history_postgres import PostgresRequestHistory
 from chatbot_rag.adapters.output.report_markdown import MarkdownReportWriter
 from chatbot_rag.adapters.output.search_mcp import McpDocSearch
 from chatbot_rag.config import ConfigError, load_setting
@@ -20,6 +21,7 @@ def build_app() -> FastAPI:
         llm=OpenAiCompatibleLlm(config.LLM_BASE_URL, config.LLM_MODEL),
         search=McpDocSearch(config.SEARCH_MCP_URL),
         writer=MarkdownReportWriter(config.DOCS_PATH / "actions-taken"),
+        history=PostgresRequestHistory(config.DATABASE_URL),
     )
     return IncidentApi(use_case).app
 

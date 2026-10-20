@@ -26,6 +26,10 @@ class Setting(BaseSettings):
         description="URL du serveur MCP de recherche BM25 (ex: http://localhost:8001/mcp)",
         default="http://localhost:8001/mcp",
     )
+    DATABASE_URL: str = Field(
+        description="URL de la base PostgreSQL d'historique (ex: postgresql://user:pass@localhost:5432/chatbot)",
+        default="postgresql://chatbot:chatbot@localhost:5432/chatbot",
+    )
     LLM_BASE_URL: str = Field(
         description="URL du serveur compatible OpenAI (ex: http://<hote-ollama>:11434/v1)",
     )

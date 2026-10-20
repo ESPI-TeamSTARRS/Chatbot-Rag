@@ -12,3 +12,7 @@ class SearchError(Exception):
 
 class ReportError(Exception):
     """The incident report could not be written."""
+
+
+class HistoryError(Exception):
+    """The request history database could not be reached or written."""

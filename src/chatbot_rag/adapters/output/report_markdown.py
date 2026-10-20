@@ -43,10 +43,6 @@ class MarkdownReportRenderer:
             "## Tool calls",
             "",
             *self._render_tool_calls(report),
-            "## Remediation",
-            "",
-            "No remediation was executed.",
-            "",
         ]
         return "\n".join(lines)
 
