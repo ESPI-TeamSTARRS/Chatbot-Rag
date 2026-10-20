@@ -32,3 +32,13 @@ packages = ["src/chatbot_rag"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.poe]
+verbosity = 0
+
+[tool.poe.tasks]
+serve = { cmd = "chatbot-rag", help = "Start the API on port 8000 (needs LLM_BASE_URL, LLM_MODEL and a running MCP search server)" }
+test = { cmd = "pytest", help = "Run every test (unit and integration)" }
+test-tu = { cmd = "pytest tests/tu", help = "Run the unit tests only" }
+test-ti = { cmd = "pytest tests/ti", help = "Run the integration tests only" }
+check = { sequence = ["test"], help = "Run all the checks (currently the tests); used by the pre-push hook" }
