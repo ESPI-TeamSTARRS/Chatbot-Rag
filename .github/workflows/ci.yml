@@ -1,0 +1,70 @@
+name: CI
+
+# Tests du chatbot + build de l'image Docker + scan de secrets, en parallele.
+# Chaque job appelle les taches poe du projet : jamais d'outil en direct.
+# `ci-ok` est le seul check a rendre obligatoire dans la protection de branche.
+
+on:
+  push:
+    # Sur main, la CI est jouee par release.yml (appel de ce workflow) avant le calcul de la version.
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen
+      - name: Verifications (poe check)
+        run: uv run poe check
+
+  docker:
+    name: docker-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build de l'image
+        run: docker build -t chatbot-rag:ci .
+
+  secrets-scan:
+    name: secrets-scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (historique complet)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --redact -v .
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [test, docker, secrets-scan]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Tous les jobs bloquants sont verts
+        run: |
+          echo '${{ toJSON(needs) }}' | grep -q '"result": "\(failure\|cancelled\)"' && exit 1 || exit 0

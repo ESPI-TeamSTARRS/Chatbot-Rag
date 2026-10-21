@@ -42,3 +42,7 @@ test = { cmd = "pytest", help = "Run every test (unit and integration)" }
 test-tu = { cmd = "pytest tests/tu", help = "Run the unit tests only" }
 test-ti = { cmd = "pytest tests/ti", help = "Run the integration tests only" }
 check = { sequence = ["test"], help = "Run all the checks (currently the tests); used by the pre-push hook" }
+
+[tool.semantic_release]
+tag_format = "v{version}"
+version_toml = ["pyproject.toml:project.version"]
