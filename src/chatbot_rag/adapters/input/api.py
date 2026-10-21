@@ -19,15 +19,15 @@ class IncidentApi:
     def __init__(self, diagnose_incident: DiagnoseIncidentPort):
         self._diagnose_incident = diagnose_incident
         self.app = FastAPI(title="Chatbot RAG")
-        self.app.post("/v1/traite-instruction-usager", response_model=InstructionResponse)(
-            self._traite_instruction_usager
+        self.app.post("/v1/handles-a-detected-error", response_model=InstructionResponse)(
+            self._handles_a_detected_error
         )
         self.app.get("/health")(self._health)
 
     def _health(self) -> dict[str, str]:
         return {"status": "ok"}
 
-    def _traite_instruction_usager(self, request: ContexteIncidentDTO) -> InstructionResponse:
+    def _handles_a_detected_error(self, request: ContexteIncidentDTO) -> InstructionResponse:
         try:
             result = self._diagnose_incident.execute(request.to_trace())
         except (IterationLimitError, LlmError, SearchError) as error:

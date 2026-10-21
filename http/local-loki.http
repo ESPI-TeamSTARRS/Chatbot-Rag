@@ -16,7 +16,7 @@ GET {{lokiUrl}}/loki/api/v1/labels
 GET {{lokiUrl}}/loki/api/v1/label/event/values
 
 ### Generate data: a request that goes through the whole pipeline
-POST {{apiUrl}}/v1/traite-instruction-usager
+POST {{apiUrl}}/v1/handles-a-detected-error
 Content-Type: application/json
 
 {

@@ -60,10 +60,10 @@ The image embeds the code: after a change, restart with `--build`, otherwise the
 
 ## API
 
-`POST /v1/traite-instruction-usager` takes a `contexte_incident` JSON body (extra fields are refused):
+`POST /v1/handles-a-detected-error` takes a `contexte_incident` JSON body (extra fields are refused):
 
 ```bash
-curl -X POST http://localhost:8000/v1/traite-instruction-usager \
+curl -X POST http://localhost:8000/v1/handles-a-detected-error \
   -H 'Content-Type: application/json' \
   -d '{
     "type": "contexte_incident",

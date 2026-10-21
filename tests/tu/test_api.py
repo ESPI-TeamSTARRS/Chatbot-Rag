@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from chatbot_rag.adapters.input.api import IncidentApi
 from chatbot_rag.domain import DiagnosisResult, IterationLimitError, LlmError, NotificationError
 
-URL = "/v1/traite-instruction-usager"
+URL = "/v1/handles-a-detected-error"
 
 CONTEXTE = {
     "incident_id": "inc-1",
