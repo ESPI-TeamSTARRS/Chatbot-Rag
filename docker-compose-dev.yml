@@ -1,0 +1,33 @@
+services:
+  loki:
+    image: grafana/loki:3.4.2
+    ports:
+      - "3100:3100"
+    volumes:
+      - lokidata:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready | grep -q ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  app:
+    build: .
+    depends_on:
+      loki:
+        condition: service_healthy
+    network_mode: host
+    environment:
+      DEBUG: ${DEBUG:-false}
+      DOCS_PATH: /app/documentations
+      SEARCH_MCP_URL: ${SEARCH_MCP_URL:-http://localhost:8001/mcp}
+      LOKI_URL: ${LOKI_URL:-http://localhost:3100}
+      LLM_BASE_URL: ${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible endpoint}
+      LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL to the model name}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:?set N8N_WEBHOOK_URL to the n8n webhook}
+    volumes:
+      - ${DOCS_PATH:-./documentations}:/app/documentations:ro
+
+volumes:
+  lokidata:

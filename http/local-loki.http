@@ -1,5 +1,5 @@
-# Requests to inspect what the app records in Loki (docker compose --profile dev up).
-# Streams: {app="chatbot-rag", event="request" | "document_used" | "response"}.
+# Requests to inspect what the app records in Loki (docker compose -f docker-compose-dev.yml up).
+# Streams: {app="chatbot-rag", event="request" | "document_used" | "response" | "error"}.
 # Lines are JSON and share a request_id, so they can be joined in LogQL.
 # Loki query_range defaults to the last hour; add &start=<ns>&end=<ns> to widen it.
 

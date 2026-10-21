@@ -36,3 +36,16 @@ def test_unreachable_webhook_raises_notification_error():
 
     with pytest.raises(NotificationError):
         notifier(handler).notify("e", "p")
+
+
+def test_check_available_accepts_any_http_status():
+    for status in (200, 404, 405, 500):
+        notifier(lambda request, status=status: httpx.Response(status)).check_available()
+
+
+def test_check_available_raises_when_n8n_is_unreachable():
+    def handler(request):
+        raise httpx.ConnectError("refused")
+
+    with pytest.raises(NotificationError):
+        notifier(handler).check_available()

@@ -89,3 +89,19 @@ def test_check_available_calls_ready_and_raises_when_loki_is_down():
 
     with pytest.raises(HistoryError):
         history(refused).check_available()
+
+
+def test_tool_error_is_pushed_with_request_id_tool_and_reason():
+    pushed = []
+
+    def handler(request):
+        pushed.append(json.loads(request.content))
+        return httpx.Response(204)
+
+    history(handler).record_error("r1", "write_report", "unknown tool")
+    stream = pushed[0]["streams"][0]
+    assert stream["stream"] == {"app": "chatbot-rag", "event": "error"}
+    assert json.loads(stream["values"][0][1]) == {"request_id": "r1", "tool": "write_report", "reason": "unknown tool"}
+
+    with pytest.raises(HistoryError):
+        history(lambda request: httpx.Response(500)).record_error("r1", "x", "y")

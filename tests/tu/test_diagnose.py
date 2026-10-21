@@ -1,6 +1,6 @@
 import pytest
 
-from chatbot_rag.domain import HistoryError, IterationLimitError, NotificationError, LlmReply, LlmToolRequest, SearchHit
+from chatbot_rag.domain import HistoryError, IterationLimitError, NotificationError, LlmReply, LlmToolRequest, SearchError, SearchHit
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
 from fakes import FakeHistory, FakeNotifier
 
@@ -82,6 +82,51 @@ def test_unknown_tool_is_reported_to_llm_not_crash():
     bad = LlmReply(None, (LlmToolRequest("c1", "rm_rf", {}),))
     llm = ScriptedLlm([bad, LlmReply("ok")])
     assert diagnose_incident("t", llm=llm, search=FakeSearch([])).answer == "ok"
+
+
+class RecordingLlm(ScriptedLlm):
+    def chat(self, messages, tools):
+        self.last_messages = list(messages)
+        return super().chat(messages, tools)
+
+
+def test_unknown_tool_executes_nothing_and_gets_a_generic_error_traced_in_history(capsys):
+    search, history = FakeSearch([HIT]), FakeHistory()
+    llm = RecordingLlm([LlmReply(None, (LlmToolRequest("c1", "write_report", {"title": "x"}),)), LlmReply("ok")])
+    result = diagnose_incident("t", llm=llm, search=search, history=history)
+    assert result.answer == "ok"
+    assert search.queries == []
+    assert llm.last_messages[-1] == {"role": "tool", "tool_call_id": "c1", "content": "Error: invalid tool call."}
+    assert history.errors == [(1, "write_report", "unknown tool")]
+    assert "[ERROR]:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("arguments", [{}, {"query": ""}, {"query": "   "}, {"query": 3}])
+def test_invalid_search_query_is_a_generic_tool_error_not_an_exception(arguments):
+    search, history = FakeSearch([HIT]), FakeHistory()
+    llm = RecordingLlm([LlmReply(None, (LlmToolRequest("c1", "search_docs", arguments),)), LlmReply("ok")])
+    assert diagnose_incident("t", llm=llm, search=search, history=history).answer == "ok"
+    assert search.queries == []
+    assert llm.last_messages[-1]["content"] == "Error: invalid tool call."
+    assert history.errors == [(1, "search_docs", "'query' must be a non-empty string")]
+
+
+def test_error_recording_failure_does_not_break_the_diagnosis():
+    class ErrorsDown(FakeHistory):
+        def record_error(self, request_id, tool, reason):
+            raise HistoryError("db down")
+
+    llm = ScriptedLlm([LlmReply(None, (LlmToolRequest("c1", "rm_rf", {}),)), LlmReply("ok")])
+    assert diagnose_incident("t", llm=llm, search=FakeSearch([]), history=ErrorsDown()).answer == "ok"
+
+
+def test_search_failure_still_ends_the_request():
+    class Down:
+        def search(self, query, limit):
+            raise SearchError("mcp down")
+
+    with pytest.raises(SearchError):
+        diagnose_incident("t", llm=ScriptedLlm([search_request()]), search=Down())
 
 
 def test_request_and_documents_are_recorded():

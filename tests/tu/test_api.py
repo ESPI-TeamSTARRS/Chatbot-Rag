@@ -59,10 +59,10 @@ def test_iteration_limit_and_llm_errors_are_502():
     assert client(down).post(URL, json={"instruction": "x"}).status_code == 502
 
 
-def test_n8n_failure_is_500_with_stacktrace():
+def test_n8n_failure_is_500_without_stacktrace():
     def down(trace):
         raise NotificationError("n8n webhook unavailable")
 
     response = client(down).post(URL, json={"instruction": "x"})
     assert response.status_code == 500
-    assert "n8n webhook unavailable" in response.json()["detail"] and "Traceback" in response.json()["detail"]
+    assert response.json()["detail"] == "n8n webhook unavailable"

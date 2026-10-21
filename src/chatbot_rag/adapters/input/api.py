@@ -45,5 +45,5 @@ class IncidentApi:
         except NotificationError as error:
             stacktrace = traceback.format_exc()
             logger.warning(message=f"n8n unreachable:\n{stacktrace}")
-            raise HTTPException(status_code=500, detail=f"{error}\n{stacktrace}") from error
+            raise HTTPException(status_code=500, detail=str(error)) from error
         return InstructionResponse(answer=result.answer)

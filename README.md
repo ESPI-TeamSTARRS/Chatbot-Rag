@@ -6,9 +6,9 @@ HTTP API that takes an error trace, searches the documentation through a BM25 MC
 
 | Variable | Description |
 |---|---|
-| `DOCS_PATH` | Documentation folder (with Docker: path on the host, mounted at `/app/documentations`) (indexed, `actions-taken/` excluded). Edits, additions and deletions are picked up on the next search, no restart needed |
-| `SEARCH_MCP_URL` | URL of the BM25 MCP server (default `http://localhost:8001/mcp`; set automatically by docker compose) |
-| `LOKI_URL` | Loki receiving the request history (default `http://localhost:3100`; docker compose defaults to its `loki` service, which only exists with `--profile dev`) |
+| `DOCS_PATH` | Documentation folder (with Docker: path on the host, mounted at `/app/documentations`) (indexed). Edits, additions and deletions are picked up on the next search, no restart needed |
+| `SEARCH_MCP_URL` | URL of the BM25 MCP server (default `http://localhost:8001/mcp`; docker compose defaults to `http://host.docker.internal:8001/mcp`, the port published on the host by the separate `mcp-server` project) |
+| `LOKI_URL` | Loki receiving the request history (default `http://localhost:3100`; `docker-compose-dev.yml` defaults to its `loki` service; `docker-compose-prod.yml` needs an existing Loki) |
 | `DEBUG` | `true` prints `[DEBUG]` logs on stdout (default `false`) |
 | `N8N_WEBHOOK_URL` | n8n webhook receiving a JSON POST `{"error_log": ..., "procedure": ...}` (the request received and the answer, unchanged) |
 | `LLM_BASE_URL` | OpenAI-compatible endpoint (e.g. `http://<ollama-host>:11434/v1`) |
@@ -16,18 +16,18 @@ HTTP API that takes an error trace, searches the documentation through a BM25 MC
 
 ## Request history (Loki)
 
-Each request is pushed to Loki as log lines, labelled `app="chatbot-rag"`: `event="request"` (line timestamp = arrival time, JSON `{request_id, content}`) and `event="document_used"` (one line per document returned by a search, JSON `{request_id, path}`). The list of documents is therefore always up to date: `sum by (path) (count_over_time({app="chatbot-rag", event="document_used"} | json [30d]))`. The history never breaks a diagnosis: if Loki is down, a `[WARNING]` is printed on stdout and the diagnosis goes on.
+Each request is pushed to Loki as log lines, labelled `app="chatbot-rag"`: `event="request"` (line timestamp = arrival time, JSON `{request_id, content}`) and `event="document_used"` (one line per document returned by a search, JSON `{request_id, path}`), `event="response"` (HTTP status) and `event="error"` (tool call the LLM got wrong, JSON `{request_id, tool, reason}`). The list of documents is therefore always up to date: `sum by (path) (count_over_time({app="chatbot-rag", event="document_used"} | json [30d]))`. The history never breaks a diagnosis: if Loki is down, a `[WARNING]` is printed on stdout and the diagnosis goes on.
 
-The `loki` service of the docker compose belongs to the `dev` profile: `docker compose up -d` does not start it (use the Loki that already exists and set `LOKI_URL`), `docker compose --profile dev up -d` starts it on port 3100.
+`docker-compose-dev.yml` starts Loki on port 3100 next to the API; `docker-compose-prod.yml` does not (set `LOKI_URL` to an existing Loki).
 
 ## Usage
 
 ```bash
-cp .env.exemple .env      # then edit LLM_BASE_URL, LLM_MODEL and N8N_WEBHOOK_URL
-docker compose up --build
+cp .env.exemple .env      # then edit LLM_BASE_URL, LLM_MODEL and N8N_WEBHOOK_URL (leave SEARCH_MCP_URL and LOKI_URL unset for Docker)
+docker compose -f docker-compose-dev.yml up --build   # or docker-compose-prod.yml
 ```
 
-Docker compose starts two services: `bm25-mcp` (port 8001, see `../mcp-server/README.md`) and the API.
+The MCP search server is a separate project (`../mcp-server`, see its README): start it first, it must publish port 8001 on the host. Docker compose starts the API (`docker-compose-dev.yml` also starts Loki; `docker-compose-prod.yml` only the API). The API refuses to start (exit code 4) if the n8n host is unreachable, and (exit code 3) if Loki is.
 
 Without Docker: `cd ../mcp-server && uv run bm25-mcp`, then in another terminal `DOCS_PATH=documentations uv run chatbot-rag`. The API listens on port 8000.
 
@@ -38,9 +38,9 @@ curl -X POST http://localhost:8000/v1/traite-instruction-usager \
 # {"answer": "..."}
 ```
 
-Status codes: `200` success, `422` missing or blank `instruction`, `502` LLM unreachable or iteration limit reached. More requests are in `http/local-request.http`.
+Status codes: `200` success, `422` missing or blank `instruction`, `500` n8n webhook failure, `502` LLM or search server unreachable, or iteration limit reached. More requests are in `http/local-request.http`.
 
-The webhook call never breaks a diagnosis: if n8n is unreachable, a `[WARNING]` is printed and the answer is still returned.
+Tool calls the LLM gets wrong (unknown tool, blank `query`) never break a diagnosis: the LLM gets a generic error, an `[ERROR]` is printed and a line `event="error"` is pushed to Loki.
 
 ## Développement
 

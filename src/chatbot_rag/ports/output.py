@@ -43,5 +43,9 @@ class RequestHistoryPort(ABC):
         """Record the HTTP status code returned for the request."""
 
     @abstractmethod
+    def record_error(self, request_id: str, tool: str, reason: str) -> None:
+        """Record a tool call the LLM got wrong (unknown tool, invalid arguments)."""
+
+    @abstractmethod
     def check_available(self) -> None:
         """Raise HistoryError if the history database cannot be reached."""

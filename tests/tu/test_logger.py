@@ -51,3 +51,9 @@ def test_warning_is_printed_even_when_debug_is_disabled(capsys):
     logger.configure(enabled=False)
     logger.warning(message="db down")
     assert "[WARNING]: db down" in capsys.readouterr().out
+
+
+def test_error_is_printed_even_when_debug_is_disabled(capsys):
+    logger.configure(enabled=False)
+    logger.error(message="bad tool call")
+    assert "[ERROR]: bad tool call" in capsys.readouterr().out

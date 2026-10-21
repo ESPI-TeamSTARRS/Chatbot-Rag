@@ -17,7 +17,7 @@ APP_LABEL = "chatbot-rag"
 class LokiRequestHistory(RequestHistoryPort):
     """Sends each request (arrival time, content) and the documents it used to Loki as log lines.
 
-    Streams: {app="chatbot-rag", event="request" | "document_used" | "response"} (the latter holds the HTTP status code).
+    Streams: {app="chatbot-rag", event="request" | "document_used" | "response" | "error"} (`response` holds the HTTP status code, `error` a tool call the LLM got wrong).
     A line carries the request_id (generated here) so both events can be joined in LogQL.
     """
 
@@ -50,6 +50,10 @@ class LokiRequestHistory(RequestHistoryPort):
     def record_response(self, request_id: str, status_code: int) -> None:
         line = json.dumps({"request_id": request_id, "status_code": status_code})
         self._push("response", [(datetime.now(timezone.utc), line)])
+
+    def record_error(self, request_id: str, tool: str, reason: str) -> None:
+        line = json.dumps({"request_id": request_id, "tool": tool, "reason": reason}, ensure_ascii=False)
+        self._push("error", [(datetime.now(timezone.utc), line)])
 
     def _push(self, event: str, entries: list[tuple[datetime, str]]) -> None:
         body = {
