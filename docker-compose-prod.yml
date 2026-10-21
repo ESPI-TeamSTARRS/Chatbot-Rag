@@ -1,17 +1,14 @@
 services:
   app:
     build: .
-    ports:
-      - "8000:8000"
+    network_mode: host
     environment:
       DEBUG: ${DEBUG:-false}
       DOCS_PATH: /app/documentations
-      SEARCH_MCP_URL: ${SEARCH_MCP_URL:-http://host.docker.internal:8001/mcp}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      SEARCH_MCP_URL: ${SEARCH_MCP_URL:-http://localhost:8001/mcp}
+      LOKI_URL: ${LOKI_URL:?set LOKI_URL to the external Loki instance}
       LLM_BASE_URL: ${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible endpoint}
       LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL to the model name}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:?set N8N_WEBHOOK_URL to the n8n webhook}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - ${DOCS_PATH:-./documentations}:/app/documentations:ro
