@@ -1,22 +1,12 @@
 import traceback
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
+from chatbot_rag.adapters.input.dto import ContexteIncidentDTO
 from chatbot_rag.domain import IterationLimitError, LlmError, NotificationError, SearchError
 from chatbot_rag.logger import logger
 from chatbot_rag.ports import DiagnoseIncidentPort
-
-
-class InstructionRequest(BaseModel):
-    instruction: str
-
-    @field_validator("instruction")
-    @classmethod
-    def not_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("instruction must not be blank")
-        return value
 
 
 class InstructionResponse(BaseModel):
@@ -37,9 +27,9 @@ class IncidentApi:
     def _health(self) -> dict[str, str]:
         return {"status": "ok"}
 
-    def _traite_instruction_usager(self, request: InstructionRequest) -> InstructionResponse:
+    def _traite_instruction_usager(self, request: ContexteIncidentDTO) -> InstructionResponse:
         try:
-            result = self._diagnose_incident.execute(request.instruction)
+            result = self._diagnose_incident.execute(request.to_trace())
         except (IterationLimitError, LlmError, SearchError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
         except NotificationError as error:
