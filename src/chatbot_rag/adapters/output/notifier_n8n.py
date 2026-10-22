@@ -16,7 +16,7 @@ config = load_setting()
 _markdown = MarkdownIt("commonmark", {"html": False})
 
 
-def _format_email(error_log: str, procedure: str)->dict:
+def _format_email(error_log: str, procedure: str) -> dict:
     return {
         "to": f"{config.RECIPIENT_EMAIL}",
         "subject": "[RAG] Erreurs détectées",
@@ -26,7 +26,7 @@ def _format_email(error_log: str, procedure: str)->dict:
             "<h1>La procédure à suivre</h1>"
             f"{_markdown.render(procedure)}"
             "<p>Ceci est un mail automatique, veuillez ne pas y répondre.</p>"
-        )
+        ),
     }
 
 
@@ -46,12 +46,11 @@ class N8nWebhookNotifier(ProcedureNotifierPort):
 
     def notify(self, error_log: str, procedure: str) -> None:
         try:
-            email:dict = _format_email(error_log, procedure)
-            logger.debug("Email envoyé à n8n : "+ str(email))
+            email: dict = _format_email(error_log, procedure)
+            logger.debug("Email envoyé à n8n : " + str(email))
             response = self._client.post(
                 self._url, json=email, headers={"X-Mail-Secret": config.N8N_TOKEN}
             )
             response.raise_for_status()
         except httpx.HTTPError as error:
             raise NotificationError(f"n8n webhook unavailable ({error!r})") from error
-

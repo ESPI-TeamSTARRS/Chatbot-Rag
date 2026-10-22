@@ -50,7 +50,14 @@ def test_env_file_is_two_levels_above_config_py(tmp_path, monkeypatch):
     env_file.write_text(
         "LLM_BASE_URL=http://f/v1\nLLM_MODEL=from-file\nN8N_WEBHOOK_URL=http://n/w\nN8N_TOKEN=t\nRECIPIENT_EMAIL=a@b.c\n"
     )
-    for name in ("LLM_BASE_URL", "LLM_MODEL", "DOCS_PATH", "N8N_WEBHOOK_URL", "N8N_TOKEN", "RECIPIENT_EMAIL"):
+    for name in (
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "DOCS_PATH",
+        "N8N_WEBHOOK_URL",
+        "N8N_TOKEN",
+        "RECIPIENT_EMAIL",
+    ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setitem(Setting.model_config, "env_file", env_file)
     assert Setting().LLM_MODEL == "from-file"

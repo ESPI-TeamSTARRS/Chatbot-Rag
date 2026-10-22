@@ -61,7 +61,9 @@ def test_email_body_renders_procedure_markdown_as_html():
         requests.append(request)
         return httpx.Response(200)
 
-    notifier(handler).notify("ERROR <boom>", "## Étapes\n\n1. **Restart** it\n2. <script>x</script>")
+    notifier(handler).notify(
+        "ERROR <boom>", "## Étapes\n\n1. **Restart** it\n2. <script>x</script>"
+    )
     body = json.loads(requests[0].content)["body"]
     assert "<h2>Étapes</h2>" in body
     assert "<ol>" in body and "<strong>Restart</strong>" in body
