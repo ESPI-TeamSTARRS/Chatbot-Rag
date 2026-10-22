@@ -4,7 +4,7 @@ from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENV_FILE = Path(Path(__file__).parent, "..", "..", ".env" )
+ENV_FILE = Path(Path(__file__).parent, "..", "..", ".env")
 
 
 class ConfigError(Exception):

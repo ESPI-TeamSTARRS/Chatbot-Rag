@@ -4,7 +4,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from chatbot_rag.adapters.input.dto import ContexteIncidentDTO
-from chatbot_rag.domain import IterationLimitError, LlmError, NotificationError, SearchError
+from chatbot_rag.domain import (
+    IterationLimitError,
+    LlmError,
+    NotificationError,
+    SearchError,
+)
 from chatbot_rag.logger import logger
 from chatbot_rag.ports import DiagnoseIncidentPort
 

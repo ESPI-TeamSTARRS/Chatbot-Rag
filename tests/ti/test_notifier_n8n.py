@@ -22,7 +22,10 @@ def test_posts_error_log_and_procedure_as_is():
 
     notifier(handler).notify("ERROR boom\n  at x", "Restart it.")
     assert str(requests[0].url) == URL
-    assert json.loads(requests[0].content) == {"error_log": "ERROR boom\n  at x", "procedure": "Restart it."}
+    assert json.loads(requests[0].content) == {
+        "error_log": "ERROR boom\n  at x",
+        "procedure": "Restart it.",
+    }
 
 
 def test_http_error_status_raises_notification_error():

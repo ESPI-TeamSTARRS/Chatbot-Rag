@@ -25,14 +25,30 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - run: uv sync --frozen
-      - name: Verifications (poe check)
+      - name: Installation figee (Python epingle, sans compilation)
+        run: uv sync --frozen --no-build --no-install-project --python 3.13
+      - name: Verifications (lint, format, types, tests avec couverture >= 80 %)
         run: uv run poe check
+
+  audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --no-build --no-install-project --python 3.13
+      - name: Vulnerabilites connues des dependances d'execution
+        run: uv run poe audit
 
   docker:
     name: docker-build
@@ -40,7 +56,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build de l'image
         run: docker build -t chatbot-rag:ci .
 
@@ -50,7 +66,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: gitleaks (historique complet)
@@ -61,7 +77,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [test, docker, secrets-scan]
+    needs: [test, audit, docker, secrets-scan]
     runs-on: ubuntu-latest
     permissions: {}
     steps:

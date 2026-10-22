@@ -15,7 +15,11 @@ def test_setting_reads_uppercase_environment_variables(monkeypatch):
     monkeypatch.setenv("N8N_WEBHOOK_URL", "http://n/w")
     monkeypatch.setenv("LLM_MODEL", "m")
     setting = Setting()
-    assert (str(setting.DOCS_PATH), setting.LLM_BASE_URL, setting.LLM_MODEL) == ("/d", "http://h/v1", "m")
+    assert (str(setting.DOCS_PATH), setting.LLM_BASE_URL, setting.LLM_MODEL) == (
+        "/d",
+        "http://h/v1",
+        "m",
+    )
 
 
 def test_missing_variable_is_named(monkeypatch):
@@ -37,9 +41,11 @@ def test_inner_layers_do_not_import_adapters(layer):
 def test_env_file_is_two_levels_above_config_py(tmp_path, monkeypatch):
     from chatbot_rag import config
 
-    assert (config.ENV_FILE.parent.resolve() == Path(config.__file__).parents[2])
+    assert config.ENV_FILE.parent.resolve() == Path(config.__file__).parents[2]
     env_file = tmp_path / ".env"
-    env_file.write_text("LLM_BASE_URL=http://f/v1\nLLM_MODEL=from-file\nN8N_WEBHOOK_URL=http://n/w\n")
+    env_file.write_text(
+        "LLM_BASE_URL=http://f/v1\nLLM_MODEL=from-file\nN8N_WEBHOOK_URL=http://n/w\n"
+    )
     for name in ("LLM_BASE_URL", "LLM_MODEL", "DOCS_PATH", "N8N_WEBHOOK_URL"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setitem(Setting.model_config, "env_file", env_file)

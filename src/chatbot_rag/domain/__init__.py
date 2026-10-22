@@ -1,4 +1,10 @@
-from chatbot_rag.domain.errors import HistoryError, IterationLimitError, LlmError, NotificationError, SearchError
+from chatbot_rag.domain.errors import (
+    HistoryError,
+    IterationLimitError,
+    LlmError,
+    NotificationError,
+    SearchError,
+)
 from chatbot_rag.domain.models import (
     DiagnosisResult,
     LlmReply,

@@ -1,7 +1,12 @@
 from fastapi.testclient import TestClient
 
 from chatbot_rag.adapters.input.api import IncidentApi
-from chatbot_rag.domain import DiagnosisResult, IterationLimitError, LlmError, NotificationError
+from chatbot_rag.domain import (
+    DiagnosisResult,
+    IterationLimitError,
+    LlmError,
+    NotificationError,
+)
 
 URL = "/v1/handles-a-detected-error"
 

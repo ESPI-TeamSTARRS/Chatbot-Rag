@@ -22,7 +22,9 @@ class N8nWebhookNotifier(ProcedureNotifierPort):
 
     def notify(self, error_log: str, procedure: str) -> None:
         try:
-            response = self._client.post(self._url, json={"error_log": error_log, "procedure": procedure})
+            response = self._client.post(
+                self._url, json={"error_log": error_log, "procedure": procedure}
+            )
             response.raise_for_status()
         except httpx.HTTPError as error:
             raise NotificationError(f"n8n webhook unavailable ({error!r})") from error

@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-
 from datetime import datetime
 
 from chatbot_rag.domain import LlmReply, SearchHit

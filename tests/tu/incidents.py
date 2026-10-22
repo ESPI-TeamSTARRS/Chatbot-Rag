@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-START = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
+START = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
 
 
 def _log(minute, level, status_code=None, duration_ms=None):
@@ -21,7 +21,9 @@ def incident(service, gravite, intensite, features, logs, **overrides):
         "service": service,
         "gravite": gravite,
         "intensite": intensite,
-        "features_principales": [{"feature": f"{service}__{name}", "ecart_types": value} for name, value in features],
+        "features_principales": [
+            {"feature": f"{service}__{name}", "ecart_types": value} for name, value in features
+        ],
         "fenetre": {"debut": START.isoformat(), "fin": (START + timedelta(minutes=5)).isoformat()},
         "logs_total_service": len(logs),
         "logs_tronques": False,
@@ -36,7 +38,12 @@ PAYMENT_ERRORS = incident(
     "critique",
     8.5,
     [("error_count", 8.5), ("latency_p95", 6.1), ("success_count", -4.3)],
-    [_log(0, "INFO", 200, 110), _log(1, "ERROR", 500, 3000), _log(2, "ERROR", 502, 5000), _log(3, "CRITICAL", 503, 9000)],
+    [
+        _log(0, "INFO", 200, 110),
+        _log(1, "ERROR", 500, 3000),
+        _log(2, "ERROR", 502, 5000),
+        _log(3, "CRITICAL", 503, 9000),
+    ],
 )
 
 AUTH_DENIED_SPIKE = incident(

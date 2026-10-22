@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -9,7 +9,9 @@ from chatbot_rag.domain import HistoryError
 
 
 def history(handler):
-    return LokiRequestHistory("http://loki:3100/", httpx.Client(transport=httpx.MockTransport(handler)))
+    return LokiRequestHistory(
+        "http://loki:3100/", httpx.Client(transport=httpx.MockTransport(handler))
+    )
 
 
 def test_request_is_pushed_with_arrival_timestamp_and_content():
@@ -19,7 +21,7 @@ def test_request_is_pushed_with_arrival_timestamp_and_content():
         pushed.append(request)
         return httpx.Response(204)
 
-    received_at = datetime(2026, 10, 20, 8, 0, 0, tzinfo=timezone.utc)
+    received_at = datetime(2026, 10, 20, 8, 0, 0, tzinfo=UTC)
     request_id = history(handler).record_request(received_at, "ERROR boom")
     assert str(pushed[0].url) == "http://loki:3100/loki/api/v1/push"
     stream = json.loads(pushed[0].content)["streams"][0]
@@ -48,7 +50,7 @@ def test_no_documents_pushes_nothing():
 
 def test_loki_down_or_rejecting_raises_history_error():
     with pytest.raises(HistoryError):
-        history(lambda request: httpx.Response(500)).record_request(datetime.now(timezone.utc), "x")
+        history(lambda request: httpx.Response(500)).record_request(datetime.now(UTC), "x")
 
     def refused(request):
         raise httpx.ConnectError("refused")
@@ -101,7 +103,11 @@ def test_tool_error_is_pushed_with_request_id_tool_and_reason():
     history(handler).record_error("r1", "write_report", "unknown tool")
     stream = pushed[0]["streams"][0]
     assert stream["stream"] == {"app": "chatbot-rag", "event": "error"}
-    assert json.loads(stream["values"][0][1]) == {"request_id": "r1", "tool": "write_report", "reason": "unknown tool"}
+    assert json.loads(stream["values"][0][1]) == {
+        "request_id": "r1",
+        "tool": "write_report",
+        "reason": "unknown tool",
+    }
 
     with pytest.raises(HistoryError):
         history(lambda request: httpx.Response(500)).record_error("r1", "x", "y")

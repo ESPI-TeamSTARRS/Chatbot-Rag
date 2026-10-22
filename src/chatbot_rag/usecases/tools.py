@@ -13,7 +13,9 @@ TOOL_SCHEMAS = [
             ),
             "parameters": {
                 "type": "object",
-                "properties": {"query": {"type": "string", "description": "Keywords to search for"}},
+                "properties": {
+                    "query": {"type": "string", "description": "Keywords to search for"}
+                },
                 "required": ["query"],
             },
         },

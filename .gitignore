@@ -14,3 +14,7 @@ __pycache__/
 .pytest_cache/
 .env
 .env.prod
+coverage.xml
+.coverage
+.ruff_cache/
+.mypy_cache/

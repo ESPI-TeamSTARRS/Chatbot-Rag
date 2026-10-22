@@ -24,7 +24,7 @@ class McpDocSearch(DocSearchPort):
             raise SearchError(f"Documentation search unavailable ({error!r})") from error
 
     async def _search(self, query: str, limit: int) -> list[SearchHit]:
-        async with streamable_http_client(self._url) as (read, write, _):
+        async with streamable_http_client(self._url) as (read, write, _):  # noqa: SIM117 (la session dépend de read/write)
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(SEARCH_TOOL, {"query": query, "limit": limit})

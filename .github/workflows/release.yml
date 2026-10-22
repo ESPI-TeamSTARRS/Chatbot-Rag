@@ -36,10 +36,10 @@ jobs:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
       - name: Branche main (python-semantic-release refuse un HEAD detache)
         run: git checkout -B main "$GITHUB_SHA"
       - name: Installer python-semantic-release

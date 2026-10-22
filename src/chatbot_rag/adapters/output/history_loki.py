@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -39,7 +39,7 @@ class LokiRequestHistory(RequestHistoryPort):
         return request_id
 
     def record_documents(self, request_id: str, paths: list[str]) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         lines = [
             (now, json.dumps({"request_id": request_id, "path": path}, ensure_ascii=False))
             for path in dict.fromkeys(paths)
@@ -49,22 +49,28 @@ class LokiRequestHistory(RequestHistoryPort):
 
     def record_response(self, request_id: str, status_code: int) -> None:
         line = json.dumps({"request_id": request_id, "status_code": status_code})
-        self._push("response", [(datetime.now(timezone.utc), line)])
+        self._push("response", [(datetime.now(UTC), line)])
 
     def record_error(self, request_id: str, tool: str, reason: str) -> None:
-        line = json.dumps({"request_id": request_id, "tool": tool, "reason": reason}, ensure_ascii=False)
-        self._push("error", [(datetime.now(timezone.utc), line)])
+        line = json.dumps(
+            {"request_id": request_id, "tool": tool, "reason": reason}, ensure_ascii=False
+        )
+        self._push("error", [(datetime.now(UTC), line)])
 
     def _push(self, event: str, entries: list[tuple[datetime, str]]) -> None:
         body = {
             "streams": [
                 {
                     "stream": {"app": APP_LABEL, "event": event},
-                    "values": [[str(int(at.timestamp() * 1_000_000_000)), line] for at, line in entries],
+                    "values": [
+                        [str(int(at.timestamp() * 1_000_000_000)), line] for at, line in entries
+                    ],
                 }
             ]
         }
-        logger.info(message=f"enregistrement dans loki ... (event={event}, {len(entries)} ligne(s))")
+        logger.info(
+            message=f"enregistrement dans loki ... (event={event}, {len(entries)} ligne(s))"
+        )
         try:
             self._client.post(self._push_url, json=body).raise_for_status()
         except httpx.HTTPError as error:

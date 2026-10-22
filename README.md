@@ -96,9 +96,13 @@ Les tâches sont lancées avec [Poe the Poet](https://poethepoet.natn.io/) via u
 | Commande | Description |
 |---|---|
 | `uv run poe serve` | Démarre l'API sur le port 8000 (nécessite `LLM_BASE_URL`, `LLM_MODEL`, `N8N_WEBHOOK_URL`, Loki et le serveur MCP de recherche) |
+| `uv run poe check` | Toutes les vérifications de la CI : ruff (lint + format), mypy, tests avec couverture ≥ 80 % |
+| `uv run poe audit` | `pip-audit` sur les dépendances d'exécution |
 | `uv run poe test` | Tous les tests |
 | `uv run poe test-tu` | Tests unitaires (`tests/tu`, fakes uniquement) |
 | `uv run poe test-ti` | Tests d'intégration (`tests/ti`, vrai système de fichiers et faux serveur MCP) |
+
+Hooks Git : `uv run pre-commit install --hook-type pre-commit --hook-type commit-msg` (ruff, gitleaks, message de commit). Le hook `pre-push` (`git-hooks/pre-push`) rejoue `poe check`.
 | `uv run poe check` | Toutes les vérifications (pour l'instant les tests), appelée par le hook `pre-push` |
 
 Le serveur MCP a ses propres tests : `cd ../mcp-server && uv run pytest`.

@@ -1,11 +1,11 @@
 from datetime import datetime
 
 import pytest
+from fakes import FakeHistory, FakeNotifier
 
 from chatbot_rag.domain import LlmReply
 from chatbot_rag.logger import logger
 from chatbot_rag.usecases.diagnose import DiagnoseIncident
-from fakes import FakeHistory, FakeNotifier
 
 
 @pytest.fixture(autouse=True)

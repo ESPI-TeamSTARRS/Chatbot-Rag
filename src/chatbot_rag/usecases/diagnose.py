@@ -1,6 +1,5 @@
 import json
-
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from chatbot_rag.domain import (
     DiagnosisResult,
@@ -13,6 +12,7 @@ from chatbot_rag.domain import (
     SearchError,
     SearchHit,
 )
+from chatbot_rag.logger import logger
 from chatbot_rag.ports import (
     DiagnoseIncidentPort,
     DocSearchPort,
@@ -20,7 +20,6 @@ from chatbot_rag.ports import (
     ProcedureNotifierPort,
     RequestHistoryPort,
 )
-from chatbot_rag.logger import logger
 from chatbot_rag.usecases.tools import SEARCH_DOCS, TOOL_SCHEMAS
 
 SYSTEM_PROMPT = (
@@ -90,9 +89,7 @@ class DiagnoseIncident(DiagnoseIncidentPort):
         self._max_iterations = max_iterations
 
     def execute(self, trace: str) -> DiagnosisResult:
-        logger.debug(
-            message=f"Diagnosis started, trace: {trace!r}"
-        )
+        logger.debug(message=f"Diagnosis started, trace: {trace!r}")
         session = IncidentSession(trace)
         session.request_id = self._record_request(trace)
         try:
@@ -108,23 +105,17 @@ class DiagnoseIncident(DiagnoseIncidentPort):
 
     def _diagnose(self, trace: str, session: IncidentSession) -> DiagnosisResult:
         for iteration in range(1, self._max_iterations + 1):
-            logger.debug(
-                message=f"LLM call {iteration}/{self._max_iterations}"
-            )
+            logger.debug(message=f"LLM call {iteration}/{self._max_iterations}")
             reply = self._llm.chat(session.messages, TOOL_SCHEMAS)
             if not reply.tool_requests:
-                logger.debug(
-                    message=f"Final answer: {reply.content!r}"
-                )
+                logger.debug(message=f"Final answer: {reply.content!r}")
                 answer = reply.content or ""
                 self._notifier.notify(trace, answer)
                 return DiagnosisResult(answer)
             session.add_assistant_reply(reply)
             for request in reply.tool_requests:
                 session.add_tool_result(request, self._run_tool(request, session))
-        logger.debug(
-            message="Iteration limit reached"
-        )
+        logger.debug(message="Iteration limit reached")
         raise IterationLimitError(
             f"Iteration limit of {self._max_iterations} reached without a final answer"
         )
@@ -132,7 +123,7 @@ class DiagnoseIncident(DiagnoseIncidentPort):
     def _record_request(self, trace: str) -> str | None:
         """The history is observability only: a failure is logged and never aborts the diagnosis."""
         try:
-            return self._history.record_request(datetime.now(timezone.utc), trace)
+            return self._history.record_request(datetime.now(UTC), trace)
         except HistoryError as error:
             logger.warning(message=f"History unavailable, request not recorded: {error}")
             return None
@@ -154,15 +145,11 @@ class DiagnoseIncident(DiagnoseIncidentPort):
             logger.warning(message=f"History unavailable, documents not recorded: {error}")
 
     def _run_tool(self, request: LlmToolRequest, session: IncidentSession) -> str:
-        logger.debug(
-            message=f"Tool requested: {request.name} {request.arguments}"
-        )
+        logger.debug(message=f"Tool requested: {request.name} {request.arguments}")
         if request.name != SEARCH_DOCS:
             return self._tool_error(session, request.name, "unknown tool")
         result = self._search_docs(request.arguments, session)
-        logger.debug(
-            message=f"Tool result ({request.name}): {result!r}"
-        )
+        logger.debug(message=f"Tool result ({request.name}): {result!r}")
         return result
 
     def _search_docs(self, arguments: dict, session: IncidentSession) -> str:

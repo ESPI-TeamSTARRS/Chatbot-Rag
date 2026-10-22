@@ -1,12 +1,22 @@
 import pytest
-
-from chatbot_rag.domain import HistoryError, IterationLimitError, NotificationError, LlmReply, LlmToolRequest, SearchError, SearchHit
-from chatbot_rag.usecases.diagnose import DiagnoseIncident
 from fakes import FakeHistory, FakeNotifier
+
+from chatbot_rag.domain import (
+    HistoryError,
+    IterationLimitError,
+    LlmReply,
+    LlmToolRequest,
+    NotificationError,
+    SearchError,
+    SearchHit,
+)
+from chatbot_rag.usecases.diagnose import DiagnoseIncident
 
 
 def diagnose_incident(trace, *, llm, search, notifier=None, history=None, **options):
-    return DiagnoseIncident(llm, search, notifier or FakeNotifier(), history or FakeHistory(), **options).execute(trace)
+    return DiagnoseIncident(
+        llm, search, notifier or FakeNotifier(), history or FakeHistory(), **options
+    ).execute(trace)
 
 
 class ScriptedLlm:
@@ -70,7 +80,9 @@ def test_notifier_failure_propagates():
             raise NotificationError("n8n down")
 
     with pytest.raises(NotificationError):
-        diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down())
+        diagnose_incident(
+            "t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down()
+        )
 
 
 def test_iteration_cap():
@@ -92,11 +104,17 @@ class RecordingLlm(ScriptedLlm):
 
 def test_unknown_tool_executes_nothing_and_gets_a_generic_error_traced_in_history(capsys):
     search, history = FakeSearch([HIT]), FakeHistory()
-    llm = RecordingLlm([LlmReply(None, (LlmToolRequest("c1", "write_report", {"title": "x"}),)), LlmReply("ok")])
+    llm = RecordingLlm(
+        [LlmReply(None, (LlmToolRequest("c1", "write_report", {"title": "x"}),)), LlmReply("ok")]
+    )
     result = diagnose_incident("t", llm=llm, search=search, history=history)
     assert result.answer == "ok"
     assert search.queries == []
-    assert llm.last_messages[-1] == {"role": "tool", "tool_call_id": "c1", "content": "Error: invalid tool call."}
+    assert llm.last_messages[-1] == {
+        "role": "tool",
+        "tool_call_id": "c1",
+        "content": "Error: invalid tool call.",
+    }
     assert history.errors == [(1, "write_report", "unknown tool")]
     assert "[ERROR]:" in capsys.readouterr().out
 
@@ -104,7 +122,9 @@ def test_unknown_tool_executes_nothing_and_gets_a_generic_error_traced_in_histor
 @pytest.mark.parametrize("arguments", [{}, {"query": ""}, {"query": "   "}, {"query": 3}])
 def test_invalid_search_query_is_a_generic_tool_error_not_an_exception(arguments):
     search, history = FakeSearch([HIT]), FakeHistory()
-    llm = RecordingLlm([LlmReply(None, (LlmToolRequest("c1", "search_docs", arguments),)), LlmReply("ok")])
+    llm = RecordingLlm(
+        [LlmReply(None, (LlmToolRequest("c1", "search_docs", arguments),)), LlmReply("ok")]
+    )
     assert diagnose_incident("t", llm=llm, search=search, history=history).answer == "ok"
     assert search.queries == []
     assert llm.last_messages[-1]["content"] == "Error: invalid tool call."
@@ -117,7 +137,9 @@ def test_error_recording_failure_does_not_break_the_diagnosis():
             raise HistoryError("db down")
 
     llm = ScriptedLlm([LlmReply(None, (LlmToolRequest("c1", "rm_rf", {}),)), LlmReply("ok")])
-    assert diagnose_incident("t", llm=llm, search=FakeSearch([]), history=ErrorsDown()).answer == "ok"
+    assert (
+        diagnose_incident("t", llm=llm, search=FakeSearch([]), history=ErrorsDown()).answer == "ok"
+    )
 
 
 def test_search_failure_still_ends_the_request():
@@ -164,7 +186,9 @@ def test_documents_failure_alone_does_not_break_the_diagnosis():
 
 def test_http_status_code_is_recorded_in_history():
     history = FakeHistory()
-    diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), history=history)
+    diagnose_incident(
+        "t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), history=history
+    )
     assert history.responses == [(1, 200)]
 
     class Down:
@@ -173,5 +197,11 @@ def test_http_status_code_is_recorded_in_history():
 
     history = FakeHistory()
     with pytest.raises(NotificationError):
-        diagnose_incident("t", llm=ScriptedLlm([LlmReply("ok")]), search=FakeSearch([]), notifier=Down(), history=history)
+        diagnose_incident(
+            "t",
+            llm=ScriptedLlm([LlmReply("ok")]),
+            search=FakeSearch([]),
+            notifier=Down(),
+            history=history,
+        )
     assert history.responses == [(1, 500)]

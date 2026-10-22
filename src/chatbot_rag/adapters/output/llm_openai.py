@@ -1,4 +1,5 @@
 import json
+from typing import Any, cast
 
 from openai import OpenAI, OpenAIError
 
@@ -16,7 +17,9 @@ class OpenAiCompatibleLlm(LlmPort):
     def chat(self, messages: list[dict], tools: list[dict]) -> LlmReply:
         try:
             response = self._client.chat.completions.create(
-                model=self._model, messages=messages, tools=tools
+                model=self._model,
+                messages=cast(Any, messages),
+                tools=cast(Any, tools),
             )
         except OpenAIError as error:
             raise LlmError(f"LLM request failed: {error}") from error

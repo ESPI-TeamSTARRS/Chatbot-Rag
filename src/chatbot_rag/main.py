@@ -4,8 +4,8 @@ import uvicorn
 from fastapi import FastAPI
 
 from chatbot_rag.adapters.input.api import IncidentApi
-from chatbot_rag.adapters.output.llm_openai import OpenAiCompatibleLlm
 from chatbot_rag.adapters.output.history_loki import LokiRequestHistory
+from chatbot_rag.adapters.output.llm_openai import OpenAiCompatibleLlm
 from chatbot_rag.adapters.output.notifier_n8n import N8nWebhookNotifier
 from chatbot_rag.adapters.output.search_mcp import McpDocSearch
 from chatbot_rag.config import ConfigError, load_setting
