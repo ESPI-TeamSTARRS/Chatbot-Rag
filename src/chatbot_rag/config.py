@@ -33,6 +33,9 @@ class Setting(BaseSettings):
     N8N_WEBHOOK_URL: str = Field(
         description="URL du webhook n8n qui reçoit le log d'erreur et la procédure à suivre",
     )
+    N8N_TOKEN: str = Field(
+        description="Secret envoyé au webhook n8n dans l'en-tête X-Mail-Secret",
+    )
     LLM_BASE_URL: str = Field(
         description="URL du serveur compatible OpenAI (ex: http://<hote-ollama>:11434/v1)",
     )
