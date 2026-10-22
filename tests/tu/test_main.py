@@ -13,6 +13,8 @@ def configured_environment(monkeypatch):
     monkeypatch.setenv("LLM_BASE_URL", "http://h/v1")
     monkeypatch.setenv("LLM_MODEL", "m")
     monkeypatch.setenv("N8N_WEBHOOK_URL", "http://n8n/webhook/x")
+    monkeypatch.setenv("N8N_TOKEN", "t")
+    monkeypatch.setenv("RECIPIENT_EMAIL", "a@b.c")
     monkeypatch.setattr(main.LokiRequestHistory, "check_available", lambda self: None)
     yield
     logger.reset()

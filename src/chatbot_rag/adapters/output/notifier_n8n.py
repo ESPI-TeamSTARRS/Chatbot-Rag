@@ -2,9 +2,10 @@ import html
 
 import httpx
 from markdown_it import MarkdownIt
-from chatbot_rag.logger import logger
+
 from chatbot_rag.config import load_setting
 from chatbot_rag.domain import NotificationError
+from chatbot_rag.logger import logger
 from chatbot_rag.ports import ProcedureNotifierPort
 
 TIMEOUT_SECONDS = 10
