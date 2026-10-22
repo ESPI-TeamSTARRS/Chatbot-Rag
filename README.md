@@ -9,7 +9,7 @@ The RAG API needs these services **up before it starts**:
 | Service | Why | How |
 |---|---|---|
 | **MCP search server** (`../mcp-server`, port 8001) | documentation search (BM25). Without it every diagnosis fails with `502` | `cd ../mcp-server && docker compose up --build -d` (see its README) |
-| **Loki** (port 3100) | request history. The API **refuses to start** (exit code 3) if Loki is unreachable | started by `docker-compose-dev.yml`; with `docker-compose-prod.yml` set `LOKI_URL` to an existing Loki |
+| **Loki** (port 3100) | request history. The API **refuses to start** (exit code 3) if Loki is unreachable | started by `docker-compose-dev.yml`; with `deploy/docker-compose.prod.yml` set `LOKI_URL` to an existing Loki |
 | **n8n webhook** | receives the procedure. The API **refuses to start** (exit code 4) if the host is unreachable | external, set `N8N_WEBHOOK_URL` |
 | **LLM server** (Ollama, OpenAI-compatible) | diagnosis, with tool calling | external, set `LLM_BASE_URL` and `LLM_MODEL` |
 
@@ -21,7 +21,7 @@ The MCP server must index the same documentation folder as the API (`DOCS_PATH`,
 |---|---|
 | `DOCS_PATH` | Documentation folder (with Docker: path on the host, mounted at `/app/documentations`) (indexed). Edits, additions and deletions are picked up on the next search, no restart needed |
 | `SEARCH_MCP_URL` | URL of the BM25 MCP server (default `http://localhost:8001/mcp`: both compose files run the app on the host network, so it reaches the port published by the separate `mcp-server` project) |
-| `LOKI_URL` | Loki receiving the request history (default `http://localhost:3100`; `docker-compose-dev.yml` defaults to its `loki` service; `docker-compose-prod.yml` needs an existing Loki) |
+| `LOKI_URL` | Loki receiving the request history (default `http://localhost:3100`; `docker-compose-dev.yml` defaults to its `loki` service; `deploy/docker-compose.prod.yml` needs an existing Loki) |
 | `DEBUG` | `true` prints `[DEBUG]` logs on stdout (default `false`) |
 | `N8N_WEBHOOK_URL` | n8n webhook receiving a JSON POST `{"error_log": ..., "procedure": ...}` (the text summary of the incident and the answer, unchanged) |
 | `LLM_BASE_URL` | OpenAI-compatible endpoint (e.g. `http://<ollama-host>:11434/v1`) |
@@ -31,7 +31,7 @@ The MCP server must index the same documentation folder as the API (`DOCS_PATH`,
 
 Each request is pushed to Loki as log lines, labelled `app="chatbot-rag"`: `event="request"` (line timestamp = arrival time, JSON `{request_id, content}`) and `event="document_used"` (one line per document returned by a search, JSON `{request_id, path}`), `event="response"` (HTTP status) and `event="error"` (tool call the LLM got wrong, JSON `{request_id, tool, reason}`). The list of documents is therefore always up to date: `sum by (path) (count_over_time({app="chatbot-rag", event="document_used"} | json [30d]))`. The history never breaks a diagnosis: if Loki is down, a `[WARNING]` is printed on stdout and the diagnosis goes on.
 
-`docker-compose-dev.yml` starts Loki on port 3100 next to the API; `docker-compose-prod.yml` does not (set `LOKI_URL` to an existing Loki).
+`docker-compose-dev.yml` starts Loki on port 3100 next to the API; `deploy/docker-compose.prod.yml` does not (set `LOKI_URL` to an existing Loki).
 
 ## Usage
 
@@ -49,10 +49,10 @@ curl http://localhost:8001/health   # {"status":"ok"}
 ```bash
 cd ../Chatbot-Rag
 cp .env.exemple .env      # then edit LLM_BASE_URL, LLM_MODEL and N8N_WEBHOOK_URL (leave SEARCH_MCP_URL and LOKI_URL unset for Docker)
-docker compose -f docker-compose-dev.yml up --build   # starts Loki + the API; docker-compose-prod.yml starts only the API
+docker compose -f docker-compose-dev.yml up --build   # starts Loki + the API; deploy/docker-compose.prod.yml starts only the API
 ```
 
-`docker-compose-dev.yml` starts Loki and waits for it to be healthy; `docker-compose-prod.yml` only starts the API (set `LOKI_URL`). The API refuses to start (exit code 4) if the n8n host is unreachable, and (exit code 3) if Loki is. The compose files do not start the MCP server: if it is down, requests fail with `502`.
+`docker-compose-dev.yml` starts Loki and waits for it to be healthy; `deploy/docker-compose.prod.yml` only starts the API (set `LOKI_URL`). The API refuses to start (exit code 4) if the n8n host is unreachable, and (exit code 3) if Loki is. The compose files do not start the MCP server: if it is down, requests fail with `502`.
 
 Without Docker: start Loki (`docker compose -f docker-compose-dev.yml up -d loki`) and the MCP server (`cd ../mcp-server && uv run bm25-mcp`), then in another terminal `DOCS_PATH=documentations uv run chatbot-rag`. The API listens on port 8000.
 

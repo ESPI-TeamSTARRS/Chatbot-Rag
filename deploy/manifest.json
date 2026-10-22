@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "services": {
+    "app": {
+      "image": "ghcr.io/espi-teamstarrs/chatbot-rag",
+      "version": "0.0.0"
+    }
+  }
+}
