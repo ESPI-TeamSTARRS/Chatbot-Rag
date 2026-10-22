@@ -1,6 +1,7 @@
 services:
   app:
-    build: .
+    # Image publiee par la CI, referencee par digest dans deploy/manifest.json (voir deploy.sh).
+    image: ${APP_IMAGE:?lancer ./deploy.sh, image lue dans deploy/manifest.json}
     network_mode: host
     environment:
       DEBUG: ${DEBUG:-false}

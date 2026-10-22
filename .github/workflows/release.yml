@@ -9,6 +9,8 @@ name: Release
 on:
   push:
     branches: [main]
+    # La fusion de la PR de manifeste ne change que ce fichier : rien a versionner ni a construire.
+    paths-ignore: [deploy/manifest.json]
   workflow_dispatch:
     # Publie l'image d'une version deja taguee mais pas encore publiee.
 
@@ -35,6 +37,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+    outputs:
+      published: ${{ steps.target.outputs.version != '' && steps.exists.outputs.skip != 'true' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -148,3 +152,73 @@ jobs:
           docker buildx imagetools create -t "$IMAGE:$VERSION" -t "$IMAGE:$minor" -t "$IMAGE:latest" "$IMAGE@$DIGEST"
           echo "### chatbot-rag $VERSION" >> "$GITHUB_STEP_SUMMARY"
           echo "$IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+          # Entree du manifeste de deploiement : version + digest (jamais un tag mutable).
+          jq -n --arg version "$VERSION" --arg image "$IMAGE@$DIGEST" \
+            '{service: "app", version: $version, image: $image}' > "$RUNNER_TEMP/image-app.json"
+      - name: Digest en artefact (entree du manifeste de deploiement)
+        if: steps.target.outputs.version != '' && steps.exists.outputs.skip != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-app
+          path: ${{ runner.temp }}/image-app.json
+          retention-days: 90
+
+  manifest:
+    name: manifeste-de-deploiement
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    # Aucun droit par defaut : les ecritures passent par le jeton court de la GitHub App.
+    permissions:
+      contents: read
+    env:
+      BRANCH: release/manifest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: image-app
+          path: ${{ runner.temp }}/images
+      - name: Jeton de la GitHub App
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - name: Proposer la mise a jour du manifeste
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+
+          version="$(jq -r .version "$RUNNER_TEMP/images/image-app.json")"
+          image="$(jq -r .image "$RUNNER_TEMP/images/image-app.json")"
+          [[ "$image" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "image sans digest : $image"; exit 1; }
+          title="chore(release): deploie app $version"
+
+          git checkout -B "$BRANCH" origin/main
+          mkdir -p deploy
+          jq -n --arg version "$version" --arg image "$image" \
+            '{schema: 1, services: {app: {version: $version, image: $image}}}' > deploy/manifest.json
+          if git diff --quiet -- deploy/manifest.json && git ls-files --error-unmatch deploy/manifest.json > /dev/null 2>&1; then
+            echo "Manifeste deja a jour."; exit 0
+          fi
+          git add deploy/manifest.json
+          git commit --quiet -m "$title"
+          git push --force --quiet origin "$BRANCH"
+
+          body="Mise a jour du manifeste de deploiement : app $version ($image). Apres fusion, \`./deploy.sh\` deploie cette version."
+          open_pr="$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [[ -n "$open_pr" ]]; then
+            gh pr edit "$open_pr" --repo "$REPO" --title "$title" --body "$body"
+          else
+            gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$title" --body "$body"
+          fi
