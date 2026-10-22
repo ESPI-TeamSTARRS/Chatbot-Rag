@@ -2,8 +2,8 @@
   "schema": 1,
   "services": {
     "app": {
-      "version": "0.2.1",
-      "image": "ghcr.io/espi-teamstarrs/chatbot-rag@sha256:c714a4a2c8946b50d72d5c161c7c3780e65405dd79f9fdf18a029af115e5f58f"
+      "version": "0.4.0",
+      "image": "ghcr.io/espi-teamstarrs/chatbot-rag@sha256:b0ce8ba598f6cf5a1999185126dd8d1a11f7c6d4dcc724d04b968f1c32b81587"
     }
   }
 }
