@@ -1,4 +1,7 @@
+import html
+
 import httpx
+from markdown_it import MarkdownIt
 from chatbot_rag.logger import logger
 from chatbot_rag.config import load_setting
 from chatbot_rag.domain import NotificationError
@@ -8,16 +11,19 @@ TIMEOUT_SECONDS = 10
 
 config = load_setting()
 
+# html disabled: the procedure comes from an LLM reading untrusted docs, raw HTML must stay escaped.
+_markdown = MarkdownIt("commonmark", {"html": False})
+
 
 def _format_email(error_log: str, procedure: str)->dict:
     return {
         "to": f"{config.RECIPIENT_EMAIL}",
         "subject": "[RAG] Erreurs détectées",
         "body": (
-            "<h1>Une erreur a été détéctée par le Machine Learning</h1><br>" +
-            f"{error_log}</p><br><br>" +
-            "<h1>La procédure à suivre </h1><br>" +
-            f"<p>{procedure}</p><br><br>" +
+            "<h1>Une erreur a été détectée par le Machine Learning</h1>"
+            f"<pre>{html.escape(error_log)}</pre>"
+            "<h1>La procédure à suivre</h1>"
+            f"{_markdown.render(procedure)}"
             "<p>Ceci est un mail automatique, veuillez ne pas y répondre.</p>"
         )
     }
