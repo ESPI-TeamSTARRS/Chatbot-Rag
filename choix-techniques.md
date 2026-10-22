@@ -19,7 +19,7 @@ ml-detector ──POST contexte_incident──▶ Chatbot-Rag (:8000) ──┬�
 | Décision | Justification |
 |---|---|
 | La recherche documentaire est un **serveur MCP séparé** | Le moteur de recherche est remplaçable (BM25 aujourd'hui, vectoriel demain) sans toucher à l'API. Il se teste, se versionne, se déploie et se redémarre indépendamment. Tout autre client MCP peut l'utiliser. |
-| Le chatbot appelle le serveur via un **protocole standard (MCP)** | Pas de contrat HTTP maison à maintenir : le schéma de l'outil (`search_docs`) est auto-décrit et découvrable. |
+| L'agent appelle le serveur via un **protocole standard (MCP)** | Pas de contrat HTTP maison à maintenir : le schéma de l'outil (`search_docs`) est auto-décrit et découvrable. |
 | Les deux projets **partagent un dossier de documentation en lecture seule** | Une seule source de vérité. Le serveur MCP l'indexe, l'API ne fait que le monter dans son image. Aucun des deux ne peut le modifier (`:ro`). |
 
 Compromis assumé : un service de plus à démarrer. Si le serveur MCP est arrêté, chaque diagnostic échoue en `502`. C'est documenté dans les deux README et visible via `GET /health` côté MCP.
@@ -70,7 +70,7 @@ Pourquoi ce choix pour une petite application ?
 - L'application a **quatre dépendances externes** qui changent ou tombent (LLM, MCP, Loki, n8n). Les isoler derrière des ports permet de les remplacer sans toucher à la logique.
 - Le cas d'usage se teste **avec des fakes** (`tests/tu/fakes.py`) : tests unitaires rapides, sans réseau ni LLM.
 - Une règle est **vérifiée automatiquement** : un test (`test_inner_layers_do_not_import_adapters`) échoue si `domain`, `ports` ou `usecases` importent un adapter. L'architecture ne se dégrade donc pas silencieusement.
-- Le `main.py` est un *composition root* explicite plutôt qu'un conteneur d'injection de dépendances : pour cinq objets, c'est plus lisible et sans magie.
+- Le `main.py` est un *composition root* explicite plutôt qu'un conteneur d'injection de dépendances : pour cinq objets, c'est un choix qui rend le projet le plus lisible.
 
 ### 2.5 Gestion des pannes : échouer vite, dégrader ce qui peut l'être
 
@@ -86,12 +86,12 @@ Codes de sortie distincts : l'orchestrateur (Docker, systemd) et l'humain savent
 ### 2.6 Historique et observabilité : Loki
 
 - Chaque requête est poussée comme lignes de log étiquetées (`app="chatbot-rag"`, `event=request|document_used|response|error`) avec un `request_id` pour les relier en LogQL.
-- Loki plutôt qu'une base SQL : pas de schéma à migrer, une pile Grafana probablement déjà présente, et l'API de push est un simple POST. La liste des documents réellement utilisés se calcule à la demande (`count_over_time … | json`) au lieu d'être maintenue dans une table.
+- Loki plutôt qu'une base SQL : pas de schéma à migrer, et l'API de push est un simple POST. La liste des documents réellement utilisés se calcule à la demande (`count_over_time … | json`) au lieu d'être maintenue dans une table.
 - Compromis : Loki n'est pas transactionnel, ce qui est acceptable pour de l'historique.
 
 ### 2.7 Modèle d'exécution : synchrone
 
-L'endpoint est synchrone (`McpDocSearch` utilise `asyncio.run` pour appeler le client MCP asynchrone ; le SDK OpenAI et httpx sont utilisés en mode bloquant). Le volume attendu (incidents détectés, pas du trafic utilisateur) ne justifie pas la complexité d'un pipeline entièrement asynchrone. FastAPI exécute les handlers synchrones dans un pool de threads, donc l'API reste réactive. À réévaluer si le débit augmente.
+L'endpoint est synchrone (`McpDocSearch` utilise `asyncio.run` pour appeler le client MCP asynchrone ; le SDK OpenAI et httpx sont utilisés en mode bloquant). Le volume attendu (incidents détectés, pas du trafic utilisateur) ne justifie pas la complexité d'un pipeline entièrement asynchrone. FastAPI exécute les handlers synchrones dans un pool de threads, donc l'API reste réactive.
 
 ### 2.8 Qualité, CI et livraison
 
@@ -117,7 +117,7 @@ L'endpoint est synchrone (`McpDocSearch` utilise `asyncio.run` pour appeler le c
 
 ### 3.1 Pourquoi MCP ?
 
-**MCP (Model Context Protocol)** est le standard pour exposer des outils à un LLM. Le serveur décrit lui-même l'outil `search_docs` (nom, paramètres, docstring) ; n'importe quel client MCP (ce chatbot, un IDE, Claude Desktop) peut s'en servir sans code d'intégration spécifique. La docstring de l'outil sert de consigne au LLM (mots-clés distinctifs, retirer chemins, numéros de ligne et horodatages des stack traces).
+**MCP (Model Context Protocol)** est le standard pour exposer des outils à un LLM. Le serveur décrit lui-même l'outil `search_docs` (nom, paramètres, docstring) ; n'importe quel client MCP (cet agent, un IDE, Claude Desktop) peut s'en servir sans code d'intégration spécifique. La docstring de l'outil sert de consigne au LLM (mots-clés distinctifs, retirer chemins, numéros de ligne et horodatages des stack traces).
 
 Le SDK officiel `mcp` est utilisé avec **FastMCP** (`mcp>=1.2,<2`) : déclaration d'un outil par simple décorateur, sérialisation du retour gérée, et borne `<2` pour éviter une rupture d'API majeure non testée.
 
@@ -132,15 +132,14 @@ Le SDK officiel `mcp` est utilisé avec **FastMCP** (`mcp>=1.2,<2`) : déclarati
 | Coût / latence | Millisecondes, aucun GPU | Appel au modèle à l'indexation et à chaque requête |
 | Taille du corpus | Petite (procédures d'incident) | Utile surtout à grande échelle |
 
-Le corpus est petit, très technique, et les requêtes sont déjà **reformulées en mots-clés par le LLM**. Dans ce contexte, BM25 est suffisant, simple, sans dépendance lourde ni GPU. Le découplage via MCP laisse la porte ouverte à un moteur vectoriel ou hybride si le corpus grossit, sans modifier le chatbot.
+Le corpus est petit, très technique, et les requêtes sont déjà **reformulées en mots-clés par le LLM**. Dans ce contexte, BM25 est suffisant, simple, sans dépendance lourde ni GPU. Le découplage via MCP laisse la porte ouverte à un moteur vectoriel ou hybride si le corpus grossit, sans modifier l'agent.
 
 ### 3.3 Détails de la recherche
 
 - **Bibliothèques** : `rank-bm25` (`BM25Okapi`) et `snowballstemmer`. Deux dépendances légères, pures Python, pas de service externe.
 - **Tokenisation** : minuscules, extraction `[a-z0-9]+`, retrait de stop-words anglais, **stemming Snowball anglais**. « timed » et « timeout » partagent une racine, ce qui améliore le rappel sur les variantes d'un même terme.
-- **Documents entiers** : un document = une procédure = une unité retournée. Pas de chunking, car on veut restituer la procédure complète (cohérent avec le choix côté chatbot).
+- **Documents entiers** : un document = une procédure = une unité retournée. Pas de chunking, car on veut restituer la procédure complète (cohérent avec le choix côté agent).
 - **Filtre « partage au moins un mot »** : BM25Okapi peut attribuer un score non nul (voire négatif) à des documents sans aucun terme commun avec la requête sur de petits corpus. On ne renvoie que les documents qui contiennent réellement un terme de la requête, pour qu'un « rien trouvé » soit un vrai résultat vide que le LLM peut annoncer (« aucune procédure documentée »).
-- **Dossier `actions-taken/` exclu** : il contient les rapports produits, pas les procédures sources ; les indexer ferait remonter des comptes rendus à la place des procédures.
 - **Extensions `.md` et `.txt`** uniquement, lecture UTF-8, fichiers vides ignorés.
 - **`limit` borné** (1 à 20, 5 par défaut) : protège le serveur et le contexte du LLM contre une demande démesurée.
 
@@ -156,11 +155,11 @@ Le corpus est petit, très technique, et les requêtes sont déjà **reformulée
 
 - **`streamable-http`** par défaut (endpoint `/mcp`) : le transport HTTP actuel de MCP, adapté à un service réseau distinct que l'API appelle par URL. `sse` et `stdio` restent disponibles par `MCP_TRANSPORT` (stdio pour un usage local depuis un IDE).
 - **Route `/health`** (`custom_route` Starlette) : sonde pour Docker, la supervision et les vérifications de démarrage, indépendante du protocole MCP.
-- **Configuration par variables d'environnement** (`DOCS_PATH`, `HOST`, `PORT`, `MCP_TRANSPORT`, `DEBUG`) via pydantic-settings, comme le chatbot. Si `DOCS_PATH` n'est pas un dossier, le serveur s'arrête avec le code `2` plutôt que de servir un index vide en silence.
+- **Configuration par variables d'environnement** (`DOCS_PATH`, `HOST`, `PORT`, `MCP_TRANSPORT`, `DEBUG`) via pydantic-settings, comme l'agent. Si `DOCS_PATH` n'est pas un dossier, le serveur s'arrête avec le code `2` plutôt que de servir un index vide en silence.
 - **Logger maison** à niveau `DEBUG` activable : tokenisation de la requête, nombre de résultats et scores, utiles pour comprendre pourquoi un document ressort.
-- **Dockerfile** identique à celui du chatbot (uv, image slim, `--frozen`, correctifs Debian) ; la documentation est montée **en lecture seule**.
+- **Dockerfile** identique à celui de l'agent (uv, image slim, `--frozen`, correctifs Debian) ; la documentation est montée **en lecture seule**.
 
-### 3.6 Même chaîne qualité que le chatbot
+### 3.6 Même chaîne qualité que l'agent
 
 Le serveur reprend la même chaîne : uv, Poe, ruff, mypy, pytest avec couverture, pip-audit, pre-commit/gitleaks, hooks Git, CI GitHub et release sémantique. Avoir **la même chaîne d'outils dans les deux projets** réduit la charge cognitive pour passer de l'un à l'autre, et garantit le même niveau d'exigence sur le composant critique (la recherche) et sur l'orchestrateur.
 
@@ -173,5 +172,5 @@ Le serveur reprend la même chaîne : uv, Poe, ruff, mypy, pytest avec couvertur
 | BM25 ne comprend pas les synonymes ni les autres langues (stemmer et stop-words anglais) | Recherche hybride BM25 + embeddings, ou stemmer français si la documentation passe en français. |
 | Index en mémoire, reconstruit en entier à chaque changement | Index incrémental ou persistant si le corpus devient volumineux. |
 | Appels synchrones, un client MCP ouvert par recherche (`asyncio.run` + nouvelle session) | Session MCP réutilisée et endpoint asynchrone si le débit augmente. |
-| Pas d'authentification sur le serveur MCP ni sur l'API | Réseau privé aujourd'hui ; ajouter un jeton ou du mTLS avant toute exposition. |
-| Qualité de la réponse dépendante du LLM (tool calling parfois fragile sur les petits modèles) | Garde-fous déjà en place (boucle bornée, erreurs d'outil renvoyées au modèle) ; évaluer un jeu de cas de test de bout en bout. |
+| Pas d'authentification sur le serveur MCP ni sur l'API | Réseau privé déja utilisé |
+| Qualité de la réponse dépendante du LLM (tool calling parfois fragile sur les petits modèles) | Garde-fous déjà en place (boucle bornée, erreurs d'outil renvoyées au modèle) ; évaluer un jeu de cas de test de bout en bout. (DeepAgent) |
