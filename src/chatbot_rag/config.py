@@ -39,6 +39,9 @@ class Setting(BaseSettings):
     LLM_MODEL: str = Field(
         description="Nom du modèle utilisé (Ollama pour le moment), il doit gérer le tool calling",
     )
+    RECIPIENT_EMAIL: str = Field(
+        description="Adresse email de l'utilisateur à qui envoyer les rapports d'erreurs",
+    )
 
 
 def load_setting() -> Setting:

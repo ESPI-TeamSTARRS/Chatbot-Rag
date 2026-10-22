@@ -1,9 +1,26 @@
 import httpx
-
+from chatbot_rag.logger import logger
+from chatbot_rag.config import load_setting
 from chatbot_rag.domain import NotificationError
 from chatbot_rag.ports import ProcedureNotifierPort
 
 TIMEOUT_SECONDS = 10
+
+config = load_setting()
+
+
+def _format_email(error_log: str, procedure: str)->dict:
+    return {
+        "to": f"{config.RECIPIENT_EMAIL}",
+        "subject": "[RAG] Erreurs détectées",
+        "body": (
+            "error_log: " +
+            error_log +
+            "\n\nprocedure: " +
+            procedure +
+            "\n\nCeci est un mail automatique, veuillez ne pas y répondre."
+        )
+    }
 
 
 class N8nWebhookNotifier(ProcedureNotifierPort):
@@ -22,9 +39,12 @@ class N8nWebhookNotifier(ProcedureNotifierPort):
 
     def notify(self, error_log: str, procedure: str) -> None:
         try:
+            email:dict = _format_email(error_log, procedure)
+            logger.debug("Email envoyé à n8n : "+ str(email))
             response = self._client.post(
-                self._url, json={"error_log": error_log, "procedure": procedure}
+                self._url, json=email
             )
             response.raise_for_status()
         except httpx.HTTPError as error:
             raise NotificationError(f"n8n webhook unavailable ({error!r})") from error
+
